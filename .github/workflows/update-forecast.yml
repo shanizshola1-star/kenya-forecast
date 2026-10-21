@@ -1,0 +1,28 @@
+name: Update forecast
+
+on:
+  schedule:
+    # 04:30 and 16:30 UTC = 7:30 a.m. and 7:30 p.m. Kenya time
+    - cron: "30 4,16 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download the latest forecast
+        run: python scripts/update_forecast.py
+      - name: Save it to the website
+        run: |
+          git config user.name "forecast-bot"
+          git config user.email "forecast-bot@users.noreply.github.com"
+          git add forecast.js
+          git diff --cached --quiet || git commit -m "Forecast update $(date -u +'%Y-%m-%d %H:%M') UTC"
+          git push
