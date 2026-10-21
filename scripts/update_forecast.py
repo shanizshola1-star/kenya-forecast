@@ -1,4 +1,5 @@
-"""Download the latest 7-day forecast for every ward in Kenya and write forecast.js.
+"""Download the latest 7-day forecast for every ward in Kenya and write forecast.js
+(daily figures) and forecast-hourly.js (3-hour steps for the animation).
 
 The dashboard (index.html) reads forecast.js each time someone opens it.
 This script runs automatically twice a day (see .github/workflows/update-forecast.yml).
@@ -20,6 +21,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 POINTS = ROOT / "data" / "points.json"
 OUT = ROOT / "forecast.js"
+OUT_HOURLY = ROOT / "forecast-hourly.js"
+STEP = 3            # hours per frame in the hour-by-hour animation
 DAYS = 7
 CHUNK = 100          # locations per request
 EAT = timezone(timedelta(hours=3))
@@ -75,6 +78,19 @@ def daily_windows(series, start):
     return out
 
 
+def three_hourly(series, start):
+    """Rain in each 3-hour step and temperature at the start of each step, x10 as whole numbers."""
+    index = {t: n for n, t in enumerate(series["time"])}
+    i0 = index[start.strftime("%Y-%m-%dT%H:%M")]
+    rain, temp = [], []
+    for s in range(DAYS * 24 // STEP):
+        a = i0 + s * STEP
+        rain.append(round(10 * sum(v or 0 for v in series["rain"][a + 1:a + 1 + STEP])))
+        t = series["temp"][a]
+        temp.append(None if t is None else round(10 * t))
+    return rain, temp
+
+
 def main():
     cfg = json.loads(POINTS.read_text())
     points, counties = cfg["points"], cfg["counties"]
@@ -118,6 +134,17 @@ def main():
         "counties": county_m,
         "wards": wards,
     }, separators=(",", ":")) + ";\n")
+    # frames for the hour-by-hour animation: one list of ward values per 3-hour step
+    per_ward = [three_hourly(s, start) for s in hourly]
+    steps = DAYS * 24 // STEP
+    OUT_HOURLY.write_text("window.FORECAST_HOURLY = " + json.dumps({
+        "start": start.strftime("%Y-%m-%dT%H:%M"),
+        "step_hours": STEP,
+        "steps": steps,
+        "rain_x10": [[w[0][s] for w in per_ward] for s in range(steps)],
+        "temp_x10": [[w[1][s] for w in per_ward] for s in range(steps)],
+    }, separators=(",", ":")) + ";\n")
+
     print(f"Wrote {OUT.name}: {len(counties)} counties, {len(wards)} wards, from {start:%Y-%m-%d} 09:00 EAT")
 
 
