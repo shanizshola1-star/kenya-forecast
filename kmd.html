@@ -170,7 +170,7 @@ footer p{margin:0 0 6px}
       <section class="panel">
         <h2 id="tableTitle"></h2>
         <p class="note" id="tableNote"></p>
-        <input class="search" id="search" type="search" placeholder="Search by name" aria-label="Search the table">
+        <input class="search" id="search" type="search" placeholder="Search counties or wards" aria-label="Search counties or wards">
         <div class="tbox"><table id="table"><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table></div>
       </section>
     </div>
@@ -422,14 +422,22 @@ const renderTable = () => {
   }));
   let rows = ward ? wardsOf(st.c).map(w => ({name:w.n, con:w.s, mean:mean(w,p), ext:extreme(w,p)})) : counties.map(c => ({name:c.n, mean:mean(c,p), ext:extreme(c,p)}));
   const lo = Math.min(0, ...rows.map(r => r.mean)), hi = Math.max(...rows.map(r => r.mean)) || 1;
-  if (query) rows = rows.filter(r => (r.name + ' ' + (r.con || '')).toLowerCase().includes(query));
+  if (query) {
+    rows = rows.filter(r => (r.name + ' ' + (r.con || '')).toLowerCase().includes(query));
+    // on the all-counties view, also find wards, so people can look up their own area
+    if (!ward) wards.forEach(w => {
+      if (w.m[0] != null && (w.n + ' ' + w.s).toLowerCase().includes(query))
+        rows.push({name: w.n, sub: w.s + ', ' + counties[w.c].n, county: counties[w.c].n, mean: mean(w,p), ext: extreme(w,p)});
+    });
+  }
   const num = sortKey === 'mean' || sortKey === 'ext';
   rows.sort((a, b) => { const c = num ? a[sortKey] - b[sortKey] : String(a[sortKey]).localeCompare(String(b[sortKey])); return dir === 'ascending' ? c : -c; });
   const tb = $('tbody');
-  if (!rows.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = cols.length; td.className = 'empty'; td.textContent = 'No ' + (ward ? 'ward' : 'county') + ' matches “' + query + '”. Clear the search to see them all.'; tr.append(td); tb.replaceChildren(tr); return; }
+  if (!rows.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = cols.length; td.className = 'empty'; td.textContent = 'No ' + (ward ? 'ward' : 'county or ward') + ' matches “' + query + '”. Check the spelling, or clear the search to see them all.'; tr.append(td); tb.replaceChildren(tr); return; }
   tb.replaceChildren(...rows.map(r => {
     const tr = document.createElement('tr');
-    if (!ward) { tr.className = 'click'; tr.tabIndex = 0; tr.addEventListener('click', () => set({c:r.name})); tr.addEventListener('keydown', e => { if (e.key === 'Enter') set({c:r.name}); }); }
+    const target = r.county || r.name;
+    if (!ward) { tr.className = 'click'; tr.tabIndex = 0; tr.addEventListener('click', () => set({c:target})); tr.addEventListener('keydown', e => { if (e.key === 'Enter') set({c:target}); }); }
     for (const [key, , isNum] of cols) {
       const td = document.createElement('td');
       if (key === 'mean') {
@@ -437,7 +445,10 @@ const renderTable = () => {
         const bar = document.createElement('span'); bar.className = 'ib'; bar.style.width = Math.max(3, 3 + 60*(r.mean - lo)/(hi - lo || 1)) + 'px'; bar.style.background = colorFill(p, r.mean);
         const t = document.createElement('span'); t.textContent = f1(r.mean); w.append(bar, t); td.append(w);
       } else if (isNum) { td.className = 'num'; td.textContent = f1(r[key]); }
-      else { td.textContent = r[key]; if (key === 'con') td.className = 'sub'; }
+      else {
+        td.textContent = r[key]; if (key === 'con') td.className = 'sub';
+        if (key === 'name' && r.sub) { const s = document.createElement('div'); s.className = 'sub'; s.textContent = 'Ward in ' + r.sub; td.append(s); }
+      }
       tr.append(td);
     }
     return tr;
