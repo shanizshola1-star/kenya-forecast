@@ -1,0 +1,4 @@
+flask>=3.0
+waitress>=3.0
+numpy>=1.26
+matplotlib>=3.8

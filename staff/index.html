@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Staff portal · Kenya weather forecast</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>">
+<style>
+:root{--paper:#f3f6f5;--surface:#fff;--ink:#0e2a33;--muted:#566b72;--line:#d3dedf;--lake:#0b6e99;--lake-soft:rgba(11,110,153,.1);--bad:#b42318;--ok:#1b7f3b;--warn:#b25e00;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--paper:#0d1c21;--surface:#132a31;--ink:#e3eef0;--muted:#97adb3;--line:#27434b;--lake:#5cb8e6;--lake-soft:rgba(92,184,230,.14);--bad:#ff8a80;--ok:#6fd38f;--warn:#f0a04b;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 "Atkinson Hyperlegible","Segoe UI",Roboto,Arial,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--lake);outline-offset:2px}
+a{color:var(--lake)}
+.login{max-width:380px;margin:12vh auto;padding:28px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.login h1{font-size:1.5rem;margin:0 0 4px}.login p{color:var(--muted);margin:0 0 18px}
+label{display:block;font-size:.9rem;color:var(--muted);margin:12px 0 4px}
+input,select,textarea{width:100%;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+textarea{min-height:110px;resize:vertical}
+.btn{background:var(--lake);color:#fff;border:0;border-radius:8px;padding:9px 16px;cursor:pointer;font-weight:700}
+@media (prefers-color-scheme:dark){.btn{color:#0d1c21}}
+.btn.secondary{background:transparent;color:var(--lake);border:1px solid var(--line);font-weight:400}
+.btn.danger{background:transparent;color:var(--bad);border:1px solid var(--line);font-weight:400}
+.btn:disabled{opacity:.5;cursor:default}
+.msg{margin:12px 0 0;font-size:.95rem}.msg.err{color:var(--bad)}.msg.ok{color:var(--ok)}
+.top{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--line)}
+.top h1{font-size:1.15rem;margin:0;flex:1}
+.top .who{color:var(--muted);font-size:.9rem}
+.shell{display:grid;grid-template-columns:220px 1fr;min-height:calc(100vh - 60px)}
+@media (max-width:760px){.shell{grid-template-columns:1fr}}
+nav{background:var(--surface);border-right:1px solid var(--line);padding:12px}
+nav button{display:block;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:9px 12px;cursor:pointer}
+nav button[aria-current="page"]{background:var(--lake-soft);color:var(--lake);font-weight:700}
+@media (max-width:760px){nav{display:flex;flex-wrap:wrap;gap:4px;border-right:0;border-bottom:1px solid var(--line)}nav button{width:auto}}
+main{padding:24px;max-width:1100px;min-width:0}
+main h2{margin:0 0 4px;font-size:1.4rem}.lead{color:var(--muted);margin:0 0 18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:0 16px}
+.full{grid-column:1/-1}
+.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(10rem,1fr));gap:2px 12px;max-height:13rem;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--paper)}
+.checks label{display:flex;gap:6px;align-items:center;margin:0;color:var(--ink);font-size:.92rem}
+.checks input{width:auto}
+.actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.93rem}
+th{text-align:left;color:var(--muted);font-size:.82rem;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+td.clip{max-width:22rem}
+.rowbtns{display:flex;gap:6px;white-space:nowrap}
+.rowbtns button{padding:4px 10px;font-size:.85rem}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:.8rem;font-weight:700;border:1px solid currentColor}
+.tag.warning{color:var(--bad)}.tag.watch{color:var(--warn)}.tag.advisory{color:var(--lake)}
+.empty{color:var(--muted);padding:14px 8px}
+.stat{display:flex;gap:10px;align-items:baseline;margin:6px 0}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.hint{font-size:.85rem;color:var(--muted);margin:6px 0 0}
+code{background:var(--paper);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict';
+const $ = (sel, root = document) => root.querySelector(sel);
+const el = (tag, props = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (v === true) e.setAttribute(k, '');
+    else if (v !== false && v != null) e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c instanceof Node ? c : String(c));
+  return e;
+};
+let ME = null, CSRF = '', META = null, STATIONS = [];
+
+async function api(path, opts = {}) {
+  const o = {method: opts.method || 'GET', headers: {}, credentials: 'same-origin'};
+  if (o.method !== 'GET') o.headers['X-CSRF-Token'] = CSRF;
+  if (opts.json !== undefined) { o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(opts.json); }
+  if (opts.form) o.body = opts.form;
+  const r = await fetch(path, o);
+  let data = {};
+  try { data = await r.json(); } catch (_) {}
+  if (r.status === 401 && path !== '/api/login') { ME = null; showLogin('Your session ended. Please log in again.'); throw new Error('login'); }
+  if (!r.ok) throw new Error(data.error || 'Something went wrong (error ' + r.status + ').');
+  return data;
+}
+
+// ---------------------------------------------------------------- login
+function showLogin(note) {
+  const msg = el('p', {class: 'msg err', role: 'alert'}, note || '');
+  const u = el('input', {id: 'u', autocomplete: 'username', required: true});
+  const p = el('input', {id: 'p', type: 'password', autocomplete: 'current-password', required: true});
+  const b = el('button', {class: 'btn', type: 'submit'}, 'Log in');
+  const form = el('form', {class: 'login', onsubmit: async (e) => {
+    e.preventDefault(); b.disabled = true; msg.textContent = '';
+    try { await api('/api/login', {method: 'POST', json: {username: u.value, password: p.value}}); await start(); }
+    catch (err) { if (err.message !== 'login') msg.textContent = err.message; b.disabled = false; }
+  }},
+    el('h1', {}, 'Staff portal'), el('p', {}, 'Kenya weather forecast. Staff only.'),
+    el('label', {for: 'u'}, 'Username'), u, el('label', {for: 'p'}, 'Password'), p,
+    el('div', {class: 'actions'}, b), msg,
+    el('p', {class: 'hint'}, 'Forgot your password? Ask an administrator to reset it.'));
+  $('#app').replaceChildren(form); u.focus();
+}
+
+// ---------------------------------------------------------------- resource definitions
+const fmtWhen = s => s ? new Date(s).toLocaleString('en-GB', {timeZone: 'Africa/Nairobi', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : '';
+const num = v => v == null || v === '' ? '–' : Number(v).toFixed(1);
+const RES = {
+  warnings: {title: 'Warnings and alerts', one: 'warning',
+    lead: 'Warnings show as a coloured banner at the top of every public page while they are active.',
+    fields: [
+      {k: 'title', label: 'Title', type: 'text', full: true, hint: 'Short headline, e.g. “Heavy rain expected”'},
+      {k: 'level', label: 'Level', type: 'select', options: () => [['advisory', 'Advisory (be aware)'], ['watch', 'Watch (be prepared)'], ['warning', 'Warning (take action)']]},
+      {k: 'starts_at', label: 'Starts', type: 'datetime-local'},
+      {k: 'ends_at', label: 'Ends', type: 'datetime-local'},
+      {k: 'counties', label: 'Counties affected', type: 'counties', full: true},
+      {k: 'message', label: 'Message to the public', type: 'textarea', full: true}],
+    cols: [['Level', r => el('span', {class: 'tag ' + r.level}, r.level)], ['Title', r => r.title], ['Counties', r => r.counties === 'ALL' ? 'All counties' : r.counties.split(',').join(', ')], ['Starts', r => fmtWhen(r.starts_at)], ['Ends', r => fmtWhen(r.ends_at)]]},
+  advisories: {title: 'County advisories', one: 'advisory',
+    lead: 'Forecasts and advice for a county. They show on the dashboard when someone selects that county and a day in this period.',
+    fields: [
+      {k: 'county', label: 'County', type: 'county', allowAll: true},
+      {k: 'valid_from', label: 'First day', type: 'date'},
+      {k: 'valid_to', label: 'Last day', type: 'date'},
+      {k: 'summary', label: 'Forecast or advice', type: 'textarea', full: true, hint: 'e.g. “Showers expected in the afternoon. Farmers in the highlands should…”'}],
+    cols: [['County', r => r.county === 'ALL' ? 'All counties' : r.county], ['From', r => r.valid_from], ['To', r => r.valid_to], ['Advisory', r => r.summary.length > 120 ? r.summary.slice(0, 120) + '…' : r.summary]]},
+  stations: {title: 'Weather stations', one: 'station',
+    lead: 'Stations appear as dots on the dashboard map. Add a station here before entering its readings.',
+    fields: [
+      {k: 'name', label: 'Station name', type: 'text'},
+      {k: 'county', label: 'County', type: 'county'},
+      {k: 'lat', label: 'Latitude', type: 'number', step: 'any', hint: 'Decimal degrees, south is negative, e.g. -1.30'},
+      {k: 'lon', label: 'Longitude', type: 'number', step: 'any', hint: 'Decimal degrees, e.g. 36.75'}],
+    cols: [['Name', r => r.name], ['County', r => r.county], ['Latitude', r => r.lat], ['Longitude', r => r.lon]]},
+  readings: {title: 'Station readings', one: 'reading',
+    lead: 'Observed weather for a station and day. Fill in whichever measurements you have. You can also import many at once under Upload files.',
+    fields: [
+      {k: 'station_id', label: 'Station', type: 'station'},
+      {k: 'date', label: 'Date', type: 'date'},
+      {k: 'rain_mm', label: 'Rainfall (mm)', type: 'number', step: '0.1'},
+      {k: 'tmax', label: 'Maximum temperature (°C)', type: 'number', step: '0.1'},
+      {k: 'tmin', label: 'Minimum temperature (°C)', type: 'number', step: '0.1'},
+      {k: 'notes', label: 'Notes (optional)', type: 'text', full: true}],
+    cols: [['Date', r => r.date], ['Station', r => r.station], ['County', r => r.county], ['Rain (mm)', r => num(r.rain_mm)], ['Max (°C)', r => num(r.tmax)], ['Min (°C)', r => num(r.tmin)]]},
+  corrections: {title: 'Forecast corrections', one: 'correction',
+    lead: 'Replace the automatic forecast figure for a county and day. The dashboard shows the corrected value and the reason.',
+    fields: [
+      {k: 'county', label: 'County', type: 'county'},
+      {k: 'date', label: 'Forecast day', type: 'date'},
+      {k: 'parameter', label: 'Measure', type: 'select', options: () => Object.entries(META.params)},
+      {k: 'value', label: 'Corrected value', type: 'number', step: '0.1'},
+      {k: 'reason', label: 'Reason', type: 'text', full: true, hint: 'Shown to the public, e.g. “Adjusted by duty forecaster after latest model run”'}],
+    cols: [['Date', r => r.date], ['County', r => r.county], ['Measure', r => META.params[r.parameter]], ['Value', r => num(r.value)], ['Reason', r => r.reason]]},
+};
+
+function fieldInput(f, value) {
+  const id = 'f_' + f.k;
+  let input;
+  if (f.type === 'textarea') input = el('textarea', {id, name: f.k}, value || '');
+  else if (f.type === 'select' || f.type === 'county' || f.type === 'station') {
+    const opts = f.type === 'county' ? (f.allowAll ? [['ALL', 'All counties']] : []).concat(META.counties.map(c => [c, c]))
+      : f.type === 'station' ? STATIONS.map(s => [String(s.id), s.name + ' (' + s.county + ')']) : f.options();
+    input = el('select', {id, name: f.k}, el('option', {value: ''}, 'Choose…'), ...opts.map(([v, t]) => el('option', {value: v, selected: String(value ?? '') === v}, t)));
+  } else if (f.type === 'counties') {
+    const chosen = new Set(String(value || '').split(',').filter(Boolean));
+    const all = el('input', {type: 'checkbox', value: 'ALL', checked: chosen.has('ALL')});
+    const boxes = META.counties.map(c => el('input', {type: 'checkbox', value: c, checked: chosen.has(c)}));
+    const sync = () => boxes.forEach(b => { b.disabled = all.checked; });
+    all.addEventListener('change', sync); sync();
+    input = el('div', {class: 'checks', id, 'data-counties': ''}, el('label', {}, all, el('strong', {}, 'All counties')), ...boxes.map(b => el('label', {}, b, b.value)));
+  } else {
+    let v = value ?? '';
+    if (f.type === 'datetime-local' && v) v = String(v).slice(0, 16);
+    input = el('input', {id, name: f.k, type: f.type, step: f.step, value: v});
+  }
+  return el('div', {class: f.full ? 'full' : ''}, el('label', {for: id}, f.label), input, f.hint ? el('p', {class: 'hint'}, f.hint) : null);
+}
+
+function readForm(form, fields) {
+  const out = {};
+  for (const f of fields) {
+    if (f.type === 'counties') {
+      const box = form.querySelector('[data-counties]');
+      const all = box.querySelector('input[value="ALL"]').checked;
+      out[f.k] = all ? ['ALL'] : [...box.querySelectorAll('input:checked')].map(i => i.value);
+    } else {
+      let v = form.elements[f.k].value;
+      if (f.type === 'datetime-local' && v) v = v + ':00+03:00';
+      out[f.k] = v;
+    }
+  }
+  return out;
+}
+
+async function resourcePage(name) {
+  const R = RES[name];
+  if (name === 'readings') STATIONS = (await api('/api/stations')).items;
+  const formBox = el('div');
+  const list = el('div', {class: 'tbl'});
+  const msg = el('p', {class: 'msg', role: 'status'});
+  const openForm = (item) => {
+    if (name === 'readings' && !STATIONS.length) { msg.className = 'msg err'; msg.textContent = 'Add a station under Weather stations first.'; return; }
+    const form = el('form', {class: 'card', novalidate: true});
+    const err = el('p', {class: 'msg err', role: 'alert'});
+    const save = el('button', {class: 'btn', type: 'submit'}, item ? 'Save changes' : 'Add ' + R.one);
+    form.append(el('h3', {style: 'margin:0 0 6px'}, item ? 'Edit ' + R.one : 'New ' + R.one),
+      el('div', {class: 'grid2'}, ...R.fields.map(f => fieldInput(f, item ? item[f.k] : (f.type === 'date' ? new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10) : '')))),
+      el('div', {class: 'actions'}, save, el('button', {class: 'btn secondary', type: 'button', onclick: () => formBox.replaceChildren()}, 'Cancel')), err);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault(); save.disabled = true; err.textContent = '';
+      try {
+        await api('/api/' + name + (item ? '/' + item.id : ''), {method: item ? 'PUT' : 'POST', json: readForm(form, R.fields)});
+        formBox.replaceChildren(); msg.className = 'msg ok'; msg.textContent = item ? 'Changes saved.' : R.one[0].toUpperCase() + R.one.slice(1) + ' added. It is live on the dashboard now.';
+        await load();
+      } catch (ex) { if (ex.message !== 'login') err.textContent = ex.message; save.disabled = false; }
+    });
+    formBox.replaceChildren(form); form.querySelector('input,select,textarea').focus();
+  };
+  const load = async () => {
+    const items = (await api('/api/' + name)).items;
+    if (!items.length) { list.replaceChildren(el('p', {class: 'empty'}, 'Nothing here yet. Use “Add ' + R.one + '” to create the first one.')); return; }
+    list.replaceChildren(el('table', {},
+      el('thead', {}, el('tr', {}, ...R.cols.map(c => el('th', {}, c[0])), el('th', {}, ''))),
+      el('tbody', {}, ...items.map(it => el('tr', {},
+        ...R.cols.map(c => el('td', {class: 'clip'}, c[1](it))),
+        el('td', {}, el('div', {class: 'rowbtns'},
+          el('button', {class: 'btn secondary', onclick: () => openForm(it)}, 'Edit'),
+          el('button', {class: 'btn danger', onclick: async () => {
+            if (!confirm('Delete this ' + R.one + '? This cannot be undone.')) return;
+            try { await api('/api/' + name + '/' + it.id, {method: 'DELETE'}); msg.className = 'msg ok'; msg.textContent = 'Deleted.'; await load(); }
+            catch (ex) { if (ex.message !== 'login') { msg.className = 'msg err'; msg.textContent = ex.message; } }
+          }}, 'Delete'))))))));
+  };
+  await load();
+  return [el('h2', {}, R.title), el('p', {class: 'lead'}, R.lead),
+    el('div', {class: 'actions', style: 'margin:0 0 16px'}, el('button', {class: 'btn', onclick: () => openForm(null)}, '+ Add ' + R.one)), msg, formBox, el('div', {class: 'card'}, list)];
+}
+
+// ---------------------------------------------------------------- other pages
+async function overviewPage() {
+  const s = await api('/api/status');
+  const line = (label, j) => el('div', {class: 'stat'}, el('span', {class: 'dot', style: 'background:' + (j.running ? 'var(--warn)' : j.ok === false ? 'var(--bad)' : j.ok ? 'var(--ok)' : 'var(--line)')}),
+    el('strong', {}, label), el('span', {class: 'hint', style: 'margin:0'}, j.running ? 'Running now…' : j.last_run ? (j.ok ? 'Last run ' : 'Failed ') + fmtWhen(j.last_run) + (j.message ? ': ' + j.message : '') : 'Not run since the server started'));
+  const runBtn = (name, label) => el('button', {class: 'btn secondary', onclick: async (e) => { e.target.disabled = true; await api('/api/refresh/' + name, {method: 'POST'}); setTimeout(() => go('overview'), 1500); }}, label);
+  return [el('h2', {}, 'Welcome, ' + ME.name.split(' ')[0]), el('p', {class: 'lead'}, 'Everything you add here appears on the public dashboard straight away.'),
+    el('div', {class: 'card'}, el('h3', {style: 'margin:0 0 8px'}, 'Automatic updates'),
+      line('Open-Meteo forecast', s.jobs.forecast), el('p', {class: 'hint'}, 'Runs by itself at ' + s.update_times.join(' and ') + ' EAT.'),
+      line('KMD 7-day outlook', s.jobs.kmd), el('p', {class: 'hint'}, 'Runs when a new KMD file is uploaded.'),
+      el('div', {class: 'actions'}, runBtn('forecast', 'Update forecast now'), runBtn('kmd', 'Rebuild KMD page'))),
+    el('div', {class: 'card'}, el('h3', {style: 'margin:0 0 8px'}, 'Public pages'),
+      el('p', {style: 'margin:0'}, el('a', {href: '/', target: '_blank'}, 'Daily dashboard'), ' · ', el('a', {href: '/animated.html', target: '_blank'}, 'Animated'), ' · ', el('a', {href: '/kmd-outlook.html', target: '_blank'}, 'KMD outlook')))];
+}
+
+function uploadPage() {
+  const box = (title, lead, accept, path, after) => {
+    const file = el('input', {type: 'file', accept});
+    const msg = el('p', {class: 'msg', role: 'status'});
+    const b = el('button', {class: 'btn', type: 'submit'}, 'Upload');
+    const form = el('form', {class: 'card', onsubmit: async (e) => {
+      e.preventDefault(); if (!file.files[0]) { msg.className = 'msg err'; msg.textContent = 'Please choose a file first.'; return; }
+      b.disabled = true; msg.className = 'msg'; msg.textContent = 'Uploading…';
+      const fd = new FormData(); fd.append('file', file.files[0]);
+      try { const r = await api(path, {method: 'POST', form: fd}); msg.className = 'msg ok'; msg.replaceChildren(...after(r)); }
+      catch (ex) { if (ex.message !== 'login') { msg.className = 'msg err'; msg.textContent = ex.message; } }
+      b.disabled = false;
+    }}, el('h3', {style: 'margin:0 0 4px'}, title), el('p', {class: 'hint', style: 'margin:0 0 10px'}, ...lead), file, el('div', {class: 'actions'}, b), msg);
+    return form;
+  };
+  return [el('h2', {}, 'Upload files'), el('p', {class: 'lead'}, 'Add a new KMD forecast, or many station readings at once.'),
+    box('KMD 7-day forecast file', ['The ', el('code', {}, '7day.txt'), ' file from KMD. It replaces the current one, and the KMD outlook page updates in about a minute.'], '.txt', '/api/upload/kmd', r => [r.message]),
+    box('Station readings (CSV)', ['A spreadsheet saved as CSV with the columns ', el('code', {}, 'station, date, rain_mm, tmax, tmin, notes'), '. Station names must match ones under Weather stations, and dates look like 2026-10-24. Existing readings for the same station and day are replaced.'], '.csv', '/api/upload/readings',
+      r => [r.added + ' readings added, ' + r.updated + ' updated.', ...(r.errors.length ? [el('br'), el('span', {class: 'msg err'}, r.errors.length + ' rows skipped: ' + r.errors.slice(0, 5).join(' '))] : [])])];
+}
+
+async function usersPage() {
+  const items = (await api('/api/users')).items;
+  const msg = el('p', {class: 'msg', role: 'status'});
+  const name = el('input', {id: 'nn'}), user = el('input', {id: 'nu', autocomplete: 'off'}), pw = el('input', {id: 'np', type: 'password', autocomplete: 'new-password'});
+  const role = el('select', {id: 'nr'}, el('option', {value: 'staff'}, 'Staff'), el('option', {value: 'admin'}, 'Administrator'));
+  const add = el('form', {class: 'card', onsubmit: async (e) => {
+    e.preventDefault();
+    try { await api('/api/users', {method: 'POST', json: {name: name.value, username: user.value, password: pw.value, role: role.value}}); go('users', 'Account created. Give the username and password to the staff member in person.'); }
+    catch (ex) { if (ex.message !== 'login') { msg.className = 'msg err'; msg.textContent = ex.message; } }
+  }}, el('h3', {style: 'margin:0 0 6px'}, 'Add a staff account'),
+    el('div', {class: 'grid2'}, el('div', {}, el('label', {for: 'nn'}, 'Full name'), name), el('div', {}, el('label', {for: 'nu'}, 'Username'), user),
+      el('div', {}, el('label', {for: 'np'}, 'Temporary password (8+ characters)'), pw), el('div', {}, el('label', {for: 'nr'}, 'Role'), role)),
+    el('p', {class: 'hint'}, 'Staff can add and edit data. Administrators can also manage accounts and see the activity log.'),
+    el('div', {class: 'actions'}, el('button', {class: 'btn', type: 'submit'}, 'Create account')), msg);
+  const act = async (u, change, done) => { try { await api('/api/users/' + u.id, {method: 'PUT', json: change}); go('users', done); } catch (ex) { if (ex.message !== 'login') alert(ex.message); } };
+  const table = el('table', {}, el('thead', {}, el('tr', {}, ...['Name', 'Username', 'Role', 'Status', 'Last login', ''].map(h => el('th', {}, h)))),
+    el('tbody', {}, ...items.map(u => el('tr', {}, el('td', {}, u.name), el('td', {}, u.username), el('td', {}, u.role === 'admin' ? 'Administrator' : 'Staff'),
+      el('td', {}, u.active ? 'Active' : 'Disabled'), el('td', {}, u.last_login ? fmtWhen(u.last_login) : 'Never'),
+      el('td', {}, el('div', {class: 'rowbtns'},
+        el('button', {class: 'btn secondary', onclick: () => { const p = prompt('New password for ' + u.name + ' (8+ characters):'); if (p) act(u, {password: p}, 'Password reset for ' + u.name + '.'); }}, 'Reset password'),
+        el('button', {class: 'btn ' + (u.active ? 'danger' : 'secondary'), onclick: () => act(u, {active: !u.active}, u.active ? u.name + ' can no longer log in.' : u.name + ' can log in again.')}, u.active ? 'Disable' : 'Enable')))))));
+  return [el('h2', {}, 'Staff accounts'), el('p', {class: 'lead'}, 'Only people with an account can log in here. Disable accounts for people who leave.'), add, el('div', {class: 'card tbl'}, table)];
+}
+
+async function auditPage() {
+  const items = (await api('/api/audit')).items;
+  const names = {warnings: 'warning', advisories: 'advisory', stations: 'station', readings: 'reading', corrections: 'correction', users: 'account', kmd: 'KMD file', forecast: 'forecast'};
+  return [el('h2', {}, 'Activity log'), el('p', {class: 'lead'}, 'Every change made in the portal, newest first.'),
+    el('div', {class: 'card tbl'}, items.length ? el('table', {}, el('thead', {}, el('tr', {}, ...['When', 'Who', 'What'].map(h => el('th', {}, h)))),
+      el('tbody', {}, ...items.map(a => el('tr', {}, el('td', {style: 'white-space:nowrap'}, fmtWhen(a.at)), el('td', {}, a.username || '–'),
+        el('td', {}, a.action + ' ' + (names[a.entity] || a.entity) + (a.entity_id ? ' #' + a.entity_id : '')))))) : el('p', {class: 'empty'}, 'No activity yet.'))];
+}
+
+function accountPage() {
+  const cur = el('input', {id: 'pc', type: 'password', autocomplete: 'current-password'}), nw = el('input', {id: 'pn', type: 'password', autocomplete: 'new-password'});
+  const msg = el('p', {class: 'msg', role: 'status'});
+  return [el('h2', {}, 'My account'), el('p', {class: 'lead'}, ME.name + ' · ' + ME.username + ' · ' + (ME.role === 'admin' ? 'Administrator' : 'Staff')),
+    el('form', {class: 'card', onsubmit: async (e) => { e.preventDefault();
+      try { await api('/api/me/password', {method: 'POST', json: {current: cur.value, new: nw.value}}); msg.className = 'msg ok'; msg.textContent = 'Password changed.'; cur.value = nw.value = ''; }
+      catch (ex) { if (ex.message !== 'login') { msg.className = 'msg err'; msg.textContent = ex.message; } } }},
+      el('h3', {style: 'margin:0 0 6px'}, 'Change password'), el('label', {for: 'pc'}, 'Current password'), cur, el('label', {for: 'pn'}, 'New password (8+ characters)'), nw,
+      el('div', {class: 'actions'}, el('button', {class: 'btn', type: 'submit'}, 'Change password')), msg)];
+}
+
+// ---------------------------------------------------------------- shell
+const PAGES = [['overview', 'Overview', overviewPage], ['warnings', 'Warnings and alerts'], ['advisories', 'County advisories'], ['corrections', 'Forecast corrections'],
+  ['stations', 'Weather stations'], ['readings', 'Station readings'], ['upload', 'Upload files', uploadPage],
+  ['users', 'Staff accounts', usersPage, true], ['audit', 'Activity log', auditPage, true], ['account', 'My account', accountPage]];
+let current = 'overview';
+async function go(page, note) {
+  current = page;
+  try { history.replaceState(null, '', '#' + page); } catch (_) {}
+  document.querySelectorAll('nav button').forEach(b => b.setAttribute('aria-current', b.dataset.p === page ? 'page' : 'false'));
+  const main = $('main'); main.replaceChildren(el('p', {class: 'empty'}, 'Loading…'));
+  const def = PAGES.find(p => p[0] === page);
+  try {
+    const content = def[2] ? await def[2]() : await resourcePage(page);
+    main.replaceChildren(...(note ? [el('p', {class: 'msg ok', role: 'status'}, note)] : []), ...content);
+  } catch (ex) { if (ex.message !== 'login') main.replaceChildren(el('p', {class: 'msg err'}, ex.message)); }
+}
+function shell() {
+  const nav = el('nav', {'aria-label': 'Sections'}, ...PAGES.filter(p => !p[3] || ME.role === 'admin').map(([k, label]) => el('button', {'data-p': k, onclick: () => go(k)}, label)));
+  $('#app').replaceChildren(
+    el('header', {class: 'top'}, el('h1', {}, 'Kenya weather forecast · Staff portal'), el('span', {class: 'who'}, ME.name),
+      el('a', {href: '/', target: '_blank'}, 'View dashboard'),
+      el('button', {class: 'btn secondary', onclick: async () => { await api('/api/logout', {method: 'POST'}); ME = null; showLogin(); }}, 'Log out')),
+    el('div', {class: 'shell'}, nav, el('main', {})));
+  const want = location.hash.slice(1);
+  go(PAGES.some(p => p[0] === want && (!p[3] || ME.role === 'admin')) ? want : 'overview');
+}
+async function start() {
+  const r = await api('/api/me');
+  if (!r.user) return showLogin();
+  ME = r.user; CSRF = r.csrf; META = await api('/api/meta');
+  shell();
+}
+start().catch(() => showLogin());
+</script>
+</body>
+</html>

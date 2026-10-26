@@ -2,7 +2,7 @@
 (daily figures) and forecast-hourly.js (3-hour steps for the animation).
 
 The dashboard (index.html) reads forecast.js each time someone opens it.
-This script runs automatically twice a day (see .github/workflows/update-forecast.yml).
+On the server, app.py runs this automatically at 07:30 and 19:30 EAT.
 
 Data source today: Open-Meteo (https://open-meteo.com), free for non-commercial use.
 To switch to the KMD model output later, replace fetch_hourly() with a function that
@@ -11,6 +11,7 @@ returns the same shape: for each point, a list of hourly times, rainfall and tem
 Each forecast day runs from 09:00 EAT to 09:00 EAT the next day, as in KMD forecasts.
 """
 import json
+import os
 import sys
 import time
 import urllib.parse
@@ -20,13 +21,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 POINTS = ROOT / "data" / "points.json"
-OUT = ROOT / "forecast.js"
-OUT_HOURLY = ROOT / "forecast-hourly.js"
+OUT = ROOT / "public" / "forecast.js"
+OUT_HOURLY = ROOT / "public" / "forecast-hourly.js"
 STEP = 3            # hours per frame in the hour-by-hour animation
 DAYS = 7
 CHUNK = 100          # locations per request
 EAT = timezone(timedelta(hours=3))
 API = "https://api.open-meteo.com/v1/forecast"
+
+
+def atomic_write(path, content):
+    """Write to a temporary file first, then swap it in, so visitors never load a half-written file."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(content)
+    os.replace(tmp, path)
 
 
 def fetch_hourly(points):
@@ -126,7 +134,7 @@ def main():
                 m += [r1(sum(vals) / len(vals)), r1(ext)]
         county_m.append(m)
 
-    OUT.write_text("window.FORECAST = " + json.dumps({
+    atomic_write(OUT, "window.FORECAST = " + json.dumps({
         "start": start.strftime("%Y-%m-%d"),
         "days": DAYS,
         "issued": now.strftime("%Y-%m-%dT%H:%M%z"),
@@ -137,7 +145,7 @@ def main():
     # frames for the hour-by-hour animation: one list of ward values per 3-hour step
     per_ward = [three_hourly(s, start) for s in hourly]
     steps = DAYS * 24 // STEP
-    OUT_HOURLY.write_text("window.FORECAST_HOURLY = " + json.dumps({
+    atomic_write(OUT_HOURLY, "window.FORECAST_HOURLY = " + json.dumps({
         "start": start.strftime("%Y-%m-%dT%H:%M"),
         "step_hours": STEP,
         "steps": steps,

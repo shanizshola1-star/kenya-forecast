@@ -5,8 +5,7 @@ It holds one value per point for the whole week: total rainfall, and the lowest 
 and highest maximum temperature. For every county and ward this script averages all grid
 points inside it, and finds the most extreme point.
 
-This runs automatically when a new kmd/7day.txt is uploaded to GitHub
-(see .github/workflows/kmd-update.yml).
+On the server, this runs automatically when staff upload a new 7day.txt in the staff portal.
 """
 import base64
 import json
@@ -20,22 +19,22 @@ import numpy as np
 from matplotlib.path import Path as Poly
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "kmd" / "7day.txt"
+SRC = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "data" / "kmd" / "7day.txt"
 SHAPES = ROOT / "data" / "shapes.json"
-OUT = ROOT / "kmd-data.js"
+OUT = ROOT / "public" / "kmd-data.js"
 EAT = timezone(timedelta(hours=3))
 NODATA = -32768
 
 
+def atomic_write(path, content):
+    """Write to a temporary file first, then swap it in, so visitors never load a half-written file."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(content)
+    os.replace(tmp, path)
+
+
 def file_date():
-    """When the KMD file was added: from GitHub's history if available, else the file's own date."""
-    try:
-        out = subprocess.run(["git", "log", "-1", "--format=%cI", "--", str(SRC)], cwd=ROOT,
-                             capture_output=True, text=True, timeout=20).stdout.strip()
-        if out:
-            return datetime.fromisoformat(out).astimezone(EAT)
-    except Exception:
-        pass
+    """When the KMD file was received: the time it was saved on the server."""
     return datetime.fromtimestamp(SRC.stat().st_mtime, EAT)
 
 
@@ -116,7 +115,7 @@ def main():
         return base64.b64encode(q[::-1].tobytes()).decode()   # rows from north to south
 
     issued = file_date()
-    OUT.write_text("window.KMD = " + json.dumps({
+    atomic_write(OUT, "window.KMD = " + json.dumps({
         "received": issued.strftime("%Y-%m-%dT%H:%M%z"),
         "source": "Kenya Meteorological Department (KMD)",
         "grid": {"lon0": round(float(ulon[0]), 4), "lat_top": round(float(ulat[-1]), 4),

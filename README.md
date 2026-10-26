@@ -1,32 +1,101 @@
-# Kenya 7-day weather forecast
+# Kenya weather forecast server
 
-A public dashboard of rainfall and temperature for every county and ward in Kenya.
-It updates itself twice a day, at about 7:30 a.m. and 7:30 p.m. Kenya time.
+Public weather dashboards, plus a **staff portal** where logged-in staff add:
 
-## What's in this folder
+- **Warnings and alerts:** a coloured banner on every public page while active
+- **County advisories:** forecasts and advice shown when someone selects that county and day
+- **Forecast corrections:** replace an automatic figure for a county and day, with a reason
+- **Weather stations and readings:** dots on the map and a table of the latest readings
+- **Uploads:** a new KMD `7day.txt` file, or many station readings at once from a CSV
 
-- `index.html`: the dashboard page.
-- `forecast.js`: the latest forecast numbers. The automatic update replaces this file.
-- `scripts/update_forecast.py`: downloads the new forecast and writes `forecast.js`.
-- `data/points.json`: the centre point of every ward, used to fetch the forecast.
-- `.github/workflows/update-forecast.yml`: the schedule that runs the script twice a day.
+The Open-Meteo forecast refreshes by itself at **07:30 and 19:30 EAT**.
 
-## Put it online with GitHub (free)
+## What's inside
 
-1. Create a free account at github.com, then click **New repository**. Give it a name such as `kenya-forecast`, set it to **Public**, and click **Create repository**.
-2. On the new repository page, click **uploading an existing file**. Drag in everything from this folder, including the `.github` folder, and click **Commit changes**.
-   The `.github` folder can be hidden on your computer. If it doesn't upload, create the file on GitHub instead: **Add file › Create new file**, type `.github/workflows/update-forecast.yml` as the name, and paste in the file's contents.
-3. Go to **Settings › Pages**. Under **Branch**, pick `main` and `/ (root)`, then click **Save**. After a minute or two, your public link appears at the top of that page, like `https://your-name.github.io/kenya-forecast/`.
-4. Go to **Settings › Actions › General**. Under **Workflow permissions**, choose **Read and write permissions** and click **Save**.
-5. Go to the **Actions** tab, pick **Update forecast**, and click **Run workflow** to test it. A green tick means it worked. From then on, it runs by itself twice a day.
+| Part | What it is |
+|---|---|
+| `app.py` | The back end: web server, database, logins, data API and scheduled updates |
+| `manage.py` | Admin tasks run on the server: create the first admin, reset passwords |
+| `public/` | The front end people see: `index.html`, `animated.html`, `kmd-outlook.html`, and `extras.js`, which adds staff data to them |
+| `staff/` | The staff portal (front end), at `/staff` |
+| `scripts/` | `update_forecast.py` (Open-Meteo) and `build_kmd.py` (KMD file conversion) |
+| `data/` | Map boundaries, ward points, and the latest KMD file in `data/kmd/` |
+| `instance/` | Created on first run: the database (`forecast.db`) and the secret key. **Back this folder up. Never share it.** |
 
-## If something goes wrong
+## Set up (for the person running the server)
 
-- If an update fails, the website keeps showing the previous forecast, and GitHub emails the account owner. The **Actions** tab shows what went wrong.
-- GitHub can start scheduled runs a few minutes late at busy times.
-- GitHub pauses schedules in repositories with no activity for 60 days. The twice-daily updates count as activity, so this shouldn't happen while it's working.
+You need a computer that stays on, with Python 3.10 or newer. Linux is easiest; Windows also works.
 
-## Data source
+```bash
+# 1. Install the tools (once)
+python -m pip install -r requirements.txt
 
-The forecast currently comes from Open-Meteo (open-meteo.com), which is free for non-commercial use.
-To switch to KMD model output later, only `scripts/update_forecast.py` needs to change. The dashboard and the schedule stay the same.
+# 2. Create the first administrator account (once)
+python manage.py create-admin
+
+# 3. Start the server
+python app.py
+```
+
+Open `http://SERVER-ADDRESS:8000/` for the dashboard, and `http://SERVER-ADDRESS:8000/staff` to log in.
+Administrators add other staff accounts in the portal under **Staff accounts**.
+
+Settings, as environment variables:
+
+- `KF_PORT`: port number (default `8000`)
+- `KF_HOST`: address to listen on (default `0.0.0.0`, meaning all)
+- `KF_HTTPS=1`: set this once the site is served over https, so login cookies are only sent securely
+
+## Before opening it to the internet: use https
+
+Staff passwords travel to the server when they log in, so the site **must** be served over **https** when reachable from outside the office.
+The usual way is to put a web server such as **Caddy** or **nginx** in front of `app.py`, with a free Let's Encrypt certificate.
+With Caddy, this whole file (`Caddyfile`) is enough, for a domain pointed at the server:
+
+```
+forecast.example.co.ke {
+    reverse_proxy 127.0.0.1:8000
+}
+```
+
+Then start the app with `KF_HOST=127.0.0.1 KF_HTTPS=1 python app.py`.
+
+## Keep it running
+
+**Linux (systemd):** save as `/etc/systemd/system/kenya-forecast.service`, adjusting the paths and user:
+
+```ini
+[Unit]
+Description=Kenya forecast server
+After=network-online.target
+
+[Service]
+WorkingDirectory=/opt/kenya-forecast
+ExecStart=/usr/bin/python3 app.py
+Environment=KF_HOST=127.0.0.1 KF_HTTPS=1
+Restart=always
+User=forecast
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then run `sudo systemctl enable --now kenya-forecast`.
+
+**Windows:** create a Task Scheduler task that runs `python app.py` in this folder **at startup**, with "Run whether user is logged on or not".
+
+## Everyday use
+
+- **New KMD file:** staff portal → **Upload files** → choose `7day.txt` → **Upload**. The KMD page updates in about a minute.
+- **Station readings in bulk:** save a spreadsheet as CSV with the columns `station, date, rain_mm, tmax, tmin, notes`, then upload it in the same place.
+- **Forgotten password:** an administrator resets it under **Staff accounts**, or on the server run `python manage.py reset-password`.
+- **Who changed what:** administrators see every change under **Activity log**.
+
+## Fetching KMD files automatically (next step)
+
+If KMD's files sit on a server reachable by SSH/SFTP (the kind you open with MobaXterm), a small job can copy `7day.txt` into `data/kmd/` after each run and then rebuild the page.
+Ask for the server address, username, login method, and the folder the file is in. Keep passwords and keys out of this folder's files.
+
+## Backups
+
+Copy the `instance/` folder regularly. It holds every account, warning, advisory, station, reading and correction.
