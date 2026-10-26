@@ -193,6 +193,7 @@ footer p{margin:0 0 6px}
     <p id="source"></p>
     <p>The map shows KMD’s forecast grid, with points about 4 km apart. County and ward figures are the average of all grid points inside each area; the wettest, hottest or coldest point is the most extreme grid value inside it.</p>
     <p>The counts use 50 mm or more of rain over the week, a highest temperature of 35 °C or above, and a lowest temperature of 10 °C or below, based on each area’s average.</p>
+    <p>Wind, sunshine and soil moisture are shown as they appear in KMD’s 7-day file: wind 10 m above the ground, sunshine as the sunlight reaching the ground in watts per square metre, and soil moisture as the share of water in the top soil layer.</p>
   </footer>
 </div>
 
@@ -212,7 +213,10 @@ const SHAPES = {"view":[32.67,-6.19,10.44,11.74],"counties":[{"n":"Baringo","d":
 function main(K) {
 const RAIN = {colors:['#40f300','#36bf06','#2baf2a','#1b8f19','#ccebff','#b4dbff','#8ec3e6','#47a6e6','#2582c1','#ffc800','#ffa500','#ef7000','#f00000'],levels:[1,5,10,20,30,40,50,75,100,125,150,200,250,300]};
 const TEMP = {colors:['#a000c8','#4a12cf','#0973e8','#00c8c8','#00d55d','#6be321','#e6dc32','#e9a02b','#e34c31','#ad005d'],levels:[5,10,15,20,25,30,35,40,45]};
-const PAR = [
+const WIND = {colors:['#f1eef6','#d4b9da','#c994c7','#df65b0','#e7298a','#ce1256','#980043','#67001f'],levels:[5,10,15,20,25,30,40]};
+const SUN = {colors:['#fff7bc','#fee391','#fec44f','#fe9929','#ec7014','#cc4c02','#8c2d04'],levels:[200,300,400,500,600,700]};
+const SOIL = {colors:['#8c510a','#bf812d','#dfc27d','#f6e8c3','#c7eae5','#80cdc1','#35978f','#01665e'],levels:[8,12,16,20,25,30,40]};
+const ALL_PAR = [
   {key:'rain', grid:'rain', name:'7-day rainfall', unit:'mm', low:false, S:RAIN, rain:true, legend:'Total rainfall over 7 days, mm',
    lead:'Wettest county', leadW:'Wettest ward', ext:'Wettest point', alert:v=>v>=50, alertL:'Counties with 50 mm or more', alertLW:'Wards with 50 mm or more',
    phr:'counties expect 50 mm or more over the week', verb:'the most rain this week is expected in '},
@@ -222,14 +226,26 @@ const PAR = [
   {key:'tmin', grid:'tmin', name:'Lowest temperature', unit:'°C', low:true, S:TEMP, rain:false, legend:'Lowest temperature in the 7 days, °C',
    lead:'Coldest county', leadW:'Coldest ward', ext:'Coldest point', alert:v=>v<=10, alertL:'Counties at 10 °C or below', alertLW:'Wards at 10 °C or below',
    phr:'counties drop to 10 °C or below at some point in the week', verb:'the coldest nights this week are expected in '},
+  {key:'wind', grid:'wind', name:'Wind', unit:'km/h', low:false, S:WIND, rain:false, legend:'Wind speed 10 m above the ground, km/h · arrows show which way it blows',
+   lead:'Windiest county', leadW:'Windiest ward', ext:'Windiest point', alert:v=>v>=20, alertL:'Counties averaging 20 km/h or more', alertLW:'Wards averaging 20 km/h or more',
+   phr:'counties average 20 km/h or more', verb:'the strongest winds this week are expected in '},
+  {key:'sun', grid:'sun', name:'Sunshine', unit:'W/m²', low:false, S:SUN, rain:false, legend:'Sunlight reaching the ground, W/m²',
+   lead:'Sunniest county', leadW:'Sunniest ward', ext:'Sunniest point', alert:v=>v>=600, alertL:'Counties averaging 600 W/m² or more', alertLW:'Wards averaging 600 W/m² or more',
+   phr:'counties average 600 W/m² or more', verb:'the strongest sunshine this week is expected in '},
+  {key:'soil', grid:'soil', name:'Soil moisture', unit:'%', low:false, S:SOIL, rain:false, legend:'Water in the top layer of soil, % (lakes and sea left out)',
+   lead:'Wettest soils', leadW:'Wettest ward', ext:'Wettest point', alert:v=>v<=10, alertL:'Counties with dry soils (10% or less)', alertLW:'Wards with dry soils (10% or less)',
+   phr:'counties have dry soils, at 10% or less', verb:'the wettest soils this week are in '},
 ];
+// only the measures this KMD file contains, each remembering its place in the data
+const PAR = ALL_PAR.map((P, i) => Object.assign({i}, P)).filter(P => (K.params || ['rain','tmax','tmin']).includes(P.key) && K.grid[P.grid])
+  .map(P => Object.assign(P, {i: (K.params || ['rain','tmax','tmin']).indexOf(P.key)}));
 const NS = 'http://www.w3.org/2000/svg';
 const $ = id => document.getElementById(id);
 const f1 = v => v == null ? '–' : (Math.round(v*10)/10).toFixed(1);
 const counties = SHAPES.counties.map((c, i) => Object.assign({m: K.counties[i]}, c));
 const wards = SHAPES.wards.map((w, i) => Object.assign({m: K.wards[i]}, w));
 const byName = new Map(counties.map((c, i) => [c.n, i]));
-const mean = (a, p) => a.m[p*2], extreme = (a, p) => a.m[p*2+1];
+const mean = (a, p) => a.m[PAR[p].i*2], extreme = (a, p) => a.m[PAR[p].i*2+1];
 const better = (p, a, b) => PAR[p].low ? a < b : a > b;
 const G = K.grid;
 
@@ -392,7 +408,7 @@ const renderMap = () => {
     if (st.c && c.n === st.c) { sel = c; return; }
     const e = pathEl(c.d, 'hit');
     e.addEventListener('click', () => set({c: c.n}));
-    e.addEventListener('pointermove', ev => { const v = pointValue(svg, ev); showTip(tip, ev, c.n, [[v.color, 'Here: ' + f1(v.v) + ' ' + P.unit], [null, 'County average: ' + f1(mean(c,p)) + ' ' + P.unit]]); });
+    e.addEventListener('pointermove', ev => { const v = pointValue(svg, ev); showTip(tip, ev, c.n, [[v.color, 'Here: ' + f1(v.v) + ' ' + P.unit + (v.dir || '')], [null, 'County average: ' + f1(mean(c,p)) + ' ' + P.unit]]); });
     e.addEventListener('pointerleave', () => hideTip(tip));
     svg.append(e);
   });
@@ -401,7 +417,7 @@ const renderMap = () => {
       if (!w.d) return;
       const e = pathEl(w.d, 'hit');
       e.addEventListener('click', () => set({c: null}));
-      e.addEventListener('pointermove', ev => { const v = pointValue(svg, ev); showTip(tip, ev, w.n, [[null, w.s + ', ' + st.c], [v.color, 'Here: ' + f1(v.v) + ' ' + P.unit], [null, 'Ward average: ' + f1(mean(w,p)) + ' ' + P.unit]]); });
+      e.addEventListener('pointermove', ev => { const v = pointValue(svg, ev); showTip(tip, ev, w.n, [[null, w.s + ', ' + st.c], [v.color, 'Here: ' + f1(v.v) + ' ' + P.unit + (v.dir || '')], [null, 'Ward average: ' + f1(mean(w,p)) + ' ' + P.unit]]); });
       e.addEventListener('pointerleave', () => hideTip(tip));
       svg.append(e);
     });
@@ -409,6 +425,7 @@ const renderMap = () => {
     try { const b = o.getBBox(), pad = Math.max(b.width, b.height)*.1; svg.setAttribute('viewBox', [b.x-pad, b.y-pad, b.width+2*pad, b.height+2*pad].join(' ')); } catch (_) {}
   }
   drawLabels(svg, labelLayer);
+  if (P.key === 'wind' && G.u && G.v) drawArrows(svg, labelLayer);
   // legend
   const S = P.S, n = S.colors.length;
   $('legendTitle').textContent = P.legend;
@@ -423,6 +440,30 @@ const renderMap = () => {
     return s;
   }));
 };
+// wind arrows: one every ~30 screen pixels, pointing the way the wind blows
+const drawArrows = (svg, before) => {
+  const vb = svg.viewBox.baseVal, rect = svg.getBoundingClientRect(); if (!rect.width) return;
+  const k = Math.max(vb.width / rect.width, vb.height / rect.height);
+  const step = Math.max(1, Math.round(30 * k / G.dx)), len = 14 * k;
+  const u = gridOf('u'), v = gridOf('v'), w = gridOf('wind');
+  const g = document.createElementNS(NS, 'g'); g.setAttribute('clip-path', 'url(#kenya)'); g.setAttribute('pointer-events', 'none');
+  const c0 = Math.max(0, Math.floor((vb.x - G.lon0) / G.dx)), c1 = Math.min(G.nx - 1, Math.ceil((vb.x + vb.width - G.lon0) / G.dx));
+  const r0 = Math.max(0, Math.floor((G.lat_top + vb.y) / G.dy)), r1 = Math.min(G.ny - 1, Math.ceil((G.lat_top + vb.y + vb.height) / G.dy));
+  let d = '';
+  for (let r = r0 - (r0 % step); r <= r1; r += step) for (let c = c0 - (c0 % step); c <= c1; c += step) {
+    const i = r * G.nx + c; if (w[i] === G.nodata || w[i] < 10) continue;
+    const ue = u[i] / 10, vn = v[i] / 10, sp = Math.hypot(ue, vn); if (!sp) continue;
+    const dx = ue / sp, dy = -vn / sp;                     // map y points south
+    const x = G.lon0 + c * G.dx, y = -(G.lat_top - r * G.dy);
+    const L = len * (0.6 + 0.4 * Math.min(1, sp / 300));
+    const x0 = x - dx * L / 2, y0 = y - dy * L / 2, x1 = x + dx * L / 2, y1 = y + dy * L / 2, h = L * 0.35;
+    d += `M${x0},${y0}L${x1},${y1}M${x1 - h*(dx - dy*0.6)},${y1 - h*(dy + dx*0.6)}L${x1},${y1}L${x1 - h*(dx + dy*0.6)},${y1 - h*(dy - dx*0.6)}`;
+  }
+  const path = document.createElementNS(NS, 'path'); path.setAttribute('d', d);
+  path.setAttribute('style', 'fill:none;stroke:var(--ink);stroke-width:1.3px;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;opacity:.65');
+  g.append(path); before.before(g);
+};
+
 // county names: drawn at a fixed screen size, skipping any that would overlap a bigger county's name
 const PRIORITY = ['Nairobi', 'Mombasa'];
 const drawLabels = (svg, layer) => {
@@ -455,7 +496,15 @@ const pointValue = (svg, ev) => {
   const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
   const q = pt.matrixTransform(svg.getScreenCTM().inverse());
   const v = gridValue(PAR[st.p].grid, q.x, -q.y);
-  return {v, color: v == null ? null : colorFill(st.p, v)};
+  let dir = '';
+  if (PAR[st.p].key === 'wind' && G.u) {
+    const ue = gridValue('u', q.x, -q.y), vn = gridValue('v', q.x, -q.y);
+    if (ue != null && vn != null && (ue || vn)) {   // wind is named by where it comes from
+      const from = (Math.atan2(-ue, -vn) * 180 / Math.PI + 360) % 360;
+      dir = ' from the ' + ['north','north-east','east','south-east','south','south-west','west','north-west'][Math.round(from / 45) % 8];
+    }
+  }
+  return {v, dir, color: v == null ? null : colorFill(st.p, v)};
 };
 
 // ---------- table ----------
@@ -517,7 +566,7 @@ const renderRank = () => {
   rows.sort((a, b) => P.low ? a.v - b.v : b.v - a.v);
   const total = rows.length, LIMIT = 15, shown = rankAll ? rows : rows.slice(0, LIMIT);
   const what = ward ? 'wards in ' + st.c : 'counties';
-  $('rankTitle').textContent = (P.low ? 'Coldest ' : (st.p === 0 ? 'Wettest ' : 'Hottest ')) + what;
+  $('rankTitle').textContent = P.lead.split(' ')[0] + ' ' + what;
   $('rankNote').textContent = P.name + ' (' + P.unit + ') over the next 7 days, by ' + (ward ? 'ward' : 'county') + ' average.' + (ward ? '' : ' Select a bar to open that county.');
   $('rankMore').hidden = total <= LIMIT;
   $('rankMore').textContent = rankAll ? 'Show top ' + LIMIT + ' only' : 'Show all ' + total + ' ' + (ward ? 'wards' : 'counties');

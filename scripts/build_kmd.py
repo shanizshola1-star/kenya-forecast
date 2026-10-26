@@ -1,11 +1,12 @@
 """Turn a KMD 7-day forecast file (kmd/7day.txt) into kmd-data.js for the KMD outlook page.
 
 The file is a grid of points (lon, lat, rain, min_temp, max_temp, ...), about 4 km apart.
-It holds one value per point for the whole week: total rainfall, and the lowest minimum
-and highest maximum temperature. For every county and ward this script averages all grid
+It holds one value per point for the whole week: total rainfall, the lowest minimum
+and highest maximum temperature, and (when present) 10 m wind, sunshine and soil moisture. For every county and ward this script averages all grid
 points inside it, and finds the most extreme point.
 
-On the server, this runs automatically when staff upload a new 7day.txt in the staff portal.
+This runs automatically when a new kmd/7day.txt is uploaded to GitHub
+(see .github/workflows/kmd-update.yml).
 """
 import base64
 import json
@@ -19,22 +20,22 @@ import numpy as np
 from matplotlib.path import Path as Poly
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "data" / "kmd" / "7day.txt"
+SRC = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "kmd" / "7day.txt"
 SHAPES = ROOT / "data" / "shapes.json"
-OUT = ROOT / "public" / "kmd-data.js"
+OUT = ROOT / "kmd-data.js"
 EAT = timezone(timedelta(hours=3))
 NODATA = -32768
 
 
-def atomic_write(path, content):
-    """Write to a temporary file first, then swap it in, so visitors never load a half-written file."""
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(content)
-    os.replace(tmp, path)
-
-
 def file_date():
-    """When the KMD file was received: the time it was saved on the server."""
+    """When the KMD file was added: from GitHub's history if available, else the file's own date."""
+    try:
+        out = subprocess.run(["git", "log", "-1", "--format=%cI", "--", str(SRC)], cwd=ROOT,
+                             capture_output=True, text=True, timeout=20).stdout.strip()
+        if out:
+            return datetime.fromisoformat(out).astimezone(EAT)
+    except Exception:
+        pass
     return datetime.fromtimestamp(SRC.stat().st_mtime, EAT)
 
 
@@ -62,6 +63,8 @@ def main():
     missing = [c for c in need if c not in head]
     if missing:
         raise RuntimeError(f"{SRC.name} is missing columns: {', '.join(missing)}")
+    optional = [c for c in ["u10", "v10", "swdown", "smois"] if c in head]   # used when present
+    need += optional
     cols = [head.index(c) for c in need]
     raw = np.loadtxt(SRC, skiprows=1, usecols=cols)
     lon, lat = raw[:, 0], raw[:, 1]
@@ -72,13 +75,25 @@ def main():
     # the file rounds coordinates to 2 decimals, so look each one up rather than computing it
     ix = np.searchsorted(ulon, np.round(lon, 3))
     iy = np.searchsorted(ulat, np.round(lat, 3))
-    grids = {}
-    for k, name in enumerate(["rain", "tmin", "tmax"], start=2):
+    def to_grid(v):
         g = np.full((ny, nx), np.nan)
-        v = raw[:, k].copy()
+        v = v.copy()
         v[v < -900] = np.nan
         g[iy, ix] = v
-        grids[name] = g
+        return g
+    col = {c: raw[:, n] for n, c in enumerate(need)}
+    grids = {"rain": to_grid(col["rain"]), "tmin": to_grid(col["min_temp"]), "tmax": to_grid(col["max_temp"])}
+    if "u10" in col and "v10" in col:
+        grids["u"] = to_grid(col["u10"] * 3.6)            # wind components in km/h
+        grids["v"] = to_grid(col["v10"] * 3.6)
+        grids["wind"] = np.hypot(grids["u"], grids["v"])
+    if "swdown" in col:
+        grids["sun"] = to_grid(col["swdown"])             # sunlight reaching the ground, W/m2
+    if "smois" in col:
+        soil = col["smois"] * 100                          # soil moisture as a percentage
+        soil[col["smois"] >= 0.99] = np.nan                # lakes and sea are stored as 100%
+        grids["soil"] = to_grid(soil)
+    params = [p for p in ("rain", "tmax", "tmin", "wind", "sun", "soil") if p in grids]
 
     # grid cell centres for point-in-polygon tests
     GX, GY = np.meshgrid(ulon, ulat)
@@ -96,7 +111,7 @@ def main():
             cx, cy = pts.mean(0)
             mask[int(np.abs(ulat - cy).argmin()) * nx + int(np.abs(ulon - cx).argmin())] = True
         m = []
-        for name in ("rain", "tmax", "tmin"):
+        for name in params:
             v = grids[name].ravel()[mask]
             v = v[~np.isnan(v)]
             if not len(v):
@@ -115,12 +130,13 @@ def main():
         return base64.b64encode(q[::-1].tobytes()).decode()   # rows from north to south
 
     issued = file_date()
-    atomic_write(OUT, "window.KMD = " + json.dumps({
+    OUT.write_text("window.KMD = " + json.dumps({
         "received": issued.strftime("%Y-%m-%dT%H:%M%z"),
         "source": "Kenya Meteorological Department (KMD)",
-        "grid": {"lon0": round(float(ulon[0]), 4), "lat_top": round(float(ulat[-1]), 4),
-                 "dx": round(dx, 6), "dy": round(dy, 6), "nx": nx, "ny": ny, "nodata": NODATA,
-                 "rain": pack(grids["rain"], False), "tmin": pack(grids["tmin"], True), "tmax": pack(grids["tmax"], True)},
+        "params": params,
+        "grid": dict({"lon0": round(float(ulon[0]), 4), "lat_top": round(float(ulat[-1]), 4),
+                      "dx": round(dx, 6), "dy": round(dy, 6), "nx": nx, "ny": ny, "nodata": NODATA},
+                     **{name: pack(g, True) for name, g in grids.items()}),
         "counties": counties,
         "wards": wards,
     }, separators=(",", ":")) + ";\n")
