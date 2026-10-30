@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Kenya 7-day outlook from KMD</title>
-<meta name="description" content="Kenya Meteorological Department 7-day rainfall and temperature outlook for every county and ward.">
+<title>Kenya weather outlook from KMD</title>
+<meta name="description" content="Kenya Meteorological Department rainfall, temperature, wind and cloud outlook for every county and ward.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌧️</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -137,7 +137,44 @@ footer p{margin:0 0 6px}
 .wline{fill:none;stroke:var(--surface);stroke-width:.5px;vector-effect:non-scaling-stroke;pointer-events:none;opacity:.8}
 .veil{fill:var(--surface);opacity:.62;pointer-events:none}
 .base{fill:var(--mapbase);stroke:none}
+.where{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:-8px 0 22px;max-width:62rem}
+.where:empty{display:none}
+.where h2{font-size:1rem;margin:0 0 8px}
+.where .band{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--line)}
+.where .band:first-of-type{border-top:0}
+.where .sw{margin-top:6px}
+.where .bl{font-weight:700;min-width:11rem}
+.where .bt{flex:1;color:var(--ink)}
+.where .bt span{color:var(--muted)}
+@media (max-width:640px){.where .band{flex-direction:column;gap:2px}.where .bl{min-width:0}}
+.tapinfo{margin:10px 0 0;padding:8px 12px;border-radius:8px;background:var(--paper);font-size:.92rem;color:var(--muted)}
+.tapinfo.on{color:var(--ink);border-left:4px solid var(--lake)}
+.tapinfo strong{color:var(--ink)}
+.kdays{display:flex;gap:6px;flex-wrap:wrap;margin:-8px 0 18px}
+.kdays[hidden]{display:none}
+.kday{appearance:none;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 14px;cursor:pointer;text-align:left;min-width:0}
+.kday:hover{border-color:var(--lake)}
+.kday[aria-pressed="true"]{background:var(--lake);border-color:var(--lake);color:#fff}
+@media (prefers-color-scheme:dark){.kday[aria-pressed="true"]{color:#0d1c21}}
+.kday b{display:block;font-size:.95rem}.kday span{display:block;font-size:.8rem;opacity:.8}
+.kday.kday-now{outline:3px solid var(--today);outline-offset:1px}
+.slow{margin:0 0 12px}.slow[hidden],.slow-ctl[hidden]{display:none}
+.slow-go{background:var(--lake);color:#fff;border:0;border-radius:999px;padding:8px 18px;font-weight:700;cursor:pointer}
+@media (prefers-color-scheme:dark){.slow-go{color:#0d1c21}}
+.slow-ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.slow-ctl button,.slow-ctl select{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
+.slow-ctl input[type=range]{flex:1 1 12rem;accent-color:var(--lake);min-width:10rem}
+.slow-speed{font-size:.88rem;color:var(--muted);display:flex;gap:6px;align-items:center}
+.slow-time{flex-basis:100%;font-weight:700;font-variant-numeric:tabular-nums}
+.slow-stop{color:var(--lake)}
+.slow-note{margin:6px 0 0}
 .clabel{fill:var(--ink);font-weight:700;paint-order:stroke;stroke:var(--surface);stroke-linejoin:round;pointer-events:none;text-anchor:middle;dominant-baseline:central}
+.cvalue{fill:var(--ink);font-weight:400;paint-order:stroke;stroke:var(--surface);stroke-linejoin:round;pointer-events:none;text-anchor:middle;dominant-baseline:central;font-variant-numeric:tabular-nums}
+.wvalue{fill:var(--ink);font-weight:700;paint-order:stroke;stroke:var(--surface);stroke-linejoin:round;pointer-events:none;text-anchor:middle;dominant-baseline:central;font-variant-numeric:tabular-nums}
+.hotdot{fill:#d7263d;stroke:#fff;stroke-width:1.5px;vector-effect:non-scaling-stroke;pointer-events:none}
+.hotlabel{fill:#a3112a;font-weight:700;paint-order:stroke;stroke:var(--surface);stroke-linejoin:round;pointer-events:none;dominant-baseline:central}
+@media (prefers-color-scheme:dark){.hotlabel{fill:#ff9aa8}}
+.tapdot{fill:none;stroke:var(--ink);stroke-width:2.5px;vector-effect:non-scaling-stroke;pointer-events:none}
 .rank svg{display:block;width:100%;height:auto}
 .rank .bar{cursor:pointer}
 .rank .bar:hover rect.b{stroke:var(--ink);stroke-width:1.5px}
@@ -148,10 +185,12 @@ footer p{margin:0 0 6px}
 <div class="wrap">
   <header>
     <span class="badge">KMD forecast</span>
-    <h1>Kenya 7-day outlook</h1>
+    <h1 id="title">Kenya 7-day outlook</h1>
     <p class="valid" id="valid"></p>
   </header>
   <p class="links">Looking for day-by-day figures? See the <a href="./">daily dashboard</a> or the <a href="animated.html">animated version</a>.</p>
+
+  <nav class="kdays" id="kdays" aria-label="Forecast day" hidden></nav>
 
   <div class="controls">
     <div class="seg" id="params" role="group" aria-label="What to show"></div>
@@ -160,12 +199,25 @@ footer p{margin:0 0 6px}
   </div>
 
   <p class="summary" id="summary" aria-live="polite"></p>
+  <section class="where" id="where" aria-live="polite"></section>
 
   <div class="layout">
     <section class="panel">
       <h2 id="mapTitle"></h2>
       <p class="note" id="mapNote"></p>
+      <div class="slow" id="slow" hidden>
+        <button type="button" class="slow-go" id="slowGo">▶ Play in slow motion</button>
+        <div class="slow-ctl" id="slowCtl" hidden>
+          <button type="button" id="slowPlay">❚❚ Pause</button>
+          <input type="range" id="slowRange" min="0" max="1" step="0.01" value="0" aria-label="Time">
+          <label class="slow-speed">Speed <select id="slowSpeed"><option value="0.35">Very slow</option><option value="0.7" selected>Slow</option><option value="1.6">Normal</option><option value="4">Fast</option></select></label>
+          <button type="button" class="slow-stop" id="slowStop">■ Stop</button>
+          <div class="slow-time" id="slowTime" aria-live="off"></div>
+        </div>
+        <p class="note slow-note" id="slowNote"></p>
+      </div>
       <div class="map" id="map"></div>
+      <p class="tapinfo" id="tapInfo">Tap or click anywhere on the map to see the exact amount for that spot.</p>
       <div class="legend"><div class="lt" id="legendTitle"></div><div class="ramp" id="ramp"></div><div class="ticks" id="ticks"></div></div>
       <div class="tip" id="mapTip"></div>
     </section>
@@ -192,8 +244,8 @@ footer p{margin:0 0 6px}
   <footer>
     <p id="source"></p>
     <p>The map shows KMD’s forecast grid, with points about 4 km apart. County and ward figures are the average of all grid points inside each area; the wettest, hottest or coldest point is the most extreme grid value inside it.</p>
-    <p>The counts use 50 mm or more of rain over the week, a highest temperature of 35 °C or above, and a lowest temperature of 10 °C or below, based on each area’s average.</p>
-    <p>Wind, sunshine and soil moisture are shown as they appear in KMD’s 7-day file: wind 10 m above the ground, sunshine as the sunlight reaching the ground in watts per square metre, and soil moisture as the share of water in the top soil layer.</p>
+    <p id="countsNote"></p>
+    <p>Dew point shows how much moisture is in the air: above about 20 °C feels muggy. Air pressure is adjusted to sea level; low pressure often comes with unsettled weather. Wind is measured 10 m above the ground. Sunshine is the sunlight reaching the ground in watts per square metre, soil moisture the share of water in the top soil layer, cloud cover the share of the sky covered by cloud, and humidity the relative humidity near the ground. Each measure appears when KMD’s file includes it.</p>
   </footer>
 </div>
 
@@ -216,38 +268,59 @@ const TEMP = {colors:['#a000c8','#4a12cf','#0973e8','#00c8c8','#00d55d','#6be321
 const WIND = {colors:['#f1eef6','#d4b9da','#c994c7','#df65b0','#e7298a','#ce1256','#980043','#67001f'],levels:[5,10,15,20,25,30,40]};
 const SUN = {colors:['#fff7bc','#fee391','#fec44f','#fe9929','#ec7014','#cc4c02','#8c2d04'],levels:[200,300,400,500,600,700]};
 const SOIL = {colors:['#8c510a','#bf812d','#dfc27d','#f6e8c3','#c7eae5','#80cdc1','#35978f','#01665e'],levels:[8,12,16,20,25,30,40]};
+const CLOUD = {colors:['#f4f6f8','#dfe5eb','#c3ccd6','#a3afbd','#8291a3','#637489','#475a70','#2e4157'],levels:[10,20,30,45,60,75,90]};
+const HUMID = {colors:['#a6611a','#d8b365','#f6e8c3','#c7eae5','#80cdc1','#35978f','#1d6f8a','#253494'],levels:[30,40,50,60,70,80,90]};
+const DEW = {colors:['#f7fcf0','#e0f3db','#ccebc5','#a8ddb5','#7bccc4','#4eb3d3','#2b8cbe','#08589e'],levels:[8,10,12,14,16,18,20]};
+const PRESS = {colors:['#5e3c99','#8073ac','#b2abd2','#d8daeb','#fee0b6','#fdb863','#e08214','#b35806'],levels:[1006,1008,1009,1010,1011,1012,1014]};
+const RAIN_DAY = {colors: RAIN.colors, levels:[1,5,10,15,20,25,30,35,40,50,60,70,80,100]};
+const RAIN3 = {colors: RAIN.colors, levels:[0.2,0.5,1,2,3,4,5,6,8,10,15,20,25,30]};
 const ALL_PAR = [
   {key:'rain', grid:'rain', name:'7-day rainfall', unit:'mm', low:false, S:RAIN, rain:true, legend:'Total rainfall over 7 days, mm',
    lead:'Wettest county', leadW:'Wettest ward', ext:'Wettest point', alert:v=>v>=50, alertL:'Counties with 50 mm or more', alertLW:'Wards with 50 mm or more',
-   phr:'counties expect 50 mm or more over the week', verb:'the most rain this week is expected in '},
+   phr:'counties expect 50 mm or more over the week', verb:'the most rain is expected in '},
   {key:'tmax', grid:'tmax', name:'Highest temperature', unit:'°C', low:false, S:TEMP, rain:false, legend:'Highest temperature in the 7 days, °C',
    lead:'Hottest county', leadW:'Hottest ward', ext:'Hottest point', alert:v=>v>=35, alertL:'Counties at 35 °C or above', alertLW:'Wards at 35 °C or above',
-   phr:'counties reach 35 °C or above at some point in the week', verb:'the hottest conditions this week are expected in '},
+   phr:'counties reach 35 °C or above at some point in the week', verb:'the hottest conditions are expected in '},
   {key:'tmin', grid:'tmin', name:'Lowest temperature', unit:'°C', low:true, S:TEMP, rain:false, legend:'Lowest temperature in the 7 days, °C',
    lead:'Coldest county', leadW:'Coldest ward', ext:'Coldest point', alert:v=>v<=10, alertL:'Counties at 10 °C or below', alertLW:'Wards at 10 °C or below',
-   phr:'counties drop to 10 °C or below at some point in the week', verb:'the coldest nights this week are expected in '},
+   phr:'counties drop to 10 °C or below at some point in the week', verb:'the coldest nights are expected in '},
+  {key:'tavg', grid:'tavg', name:'Average temperature', unit:'°C', low:false, S:TEMP, rain:false, legend:'Average temperature, °C',
+   lead:'Warmest county', leadW:'Warmest ward', ext:'Warmest point', alert:v=>v>=30, alertL:'Counties averaging 30 °C or more', alertLW:'Wards averaging 30 °C or more',
+   phr:'counties average 30 °C or more', verb:'the warmest conditions are expected in '},
   {key:'wind', grid:'wind', name:'Wind', unit:'km/h', low:false, S:WIND, rain:false, legend:'Wind speed 10 m above the ground, km/h · arrows show which way it blows',
    lead:'Windiest county', leadW:'Windiest ward', ext:'Windiest point', alert:v=>v>=20, alertL:'Counties averaging 20 km/h or more', alertLW:'Wards averaging 20 km/h or more',
-   phr:'counties average 20 km/h or more', verb:'the strongest winds this week are expected in '},
+   phr:'counties average 20 km/h or more', verb:'the strongest winds are expected in '},
   {key:'sun', grid:'sun', name:'Sunshine', unit:'W/m²', low:false, S:SUN, rain:false, legend:'Sunlight reaching the ground, W/m²',
    lead:'Sunniest county', leadW:'Sunniest ward', ext:'Sunniest point', alert:v=>v>=600, alertL:'Counties averaging 600 W/m² or more', alertLW:'Wards averaging 600 W/m² or more',
-   phr:'counties average 600 W/m² or more', verb:'the strongest sunshine this week is expected in '},
+   phr:'counties average 600 W/m² or more', verb:'the strongest sunshine is expected in '},
   {key:'soil', grid:'soil', name:'Soil moisture', unit:'%', low:false, S:SOIL, rain:false, legend:'Water in the top layer of soil, % (lakes and sea left out)',
    lead:'Wettest soils', leadW:'Wettest ward', ext:'Wettest point', alert:v=>v<=10, alertL:'Counties with dry soils (10% or less)', alertLW:'Wards with dry soils (10% or less)',
-   phr:'counties have dry soils, at 10% or less', verb:'the wettest soils this week are in '},
+   phr:'counties have dry soils, at 10% or less', verb:'the wettest soils are in '},
+  {key:'cloud', grid:'cloud', name:'Cloud cover', unit:'%', low:false, S:CLOUD, rain:false, legend:'Average cloud cover, % of the sky',
+   lead:'Cloudiest county', leadW:'Cloudiest ward', ext:'Cloudiest point', alert:v=>v>=60, alertL:'Counties mostly cloudy (60% or more)', alertLW:'Wards mostly cloudy (60% or more)',
+   phr:'counties are mostly cloudy, at 60% or more', verb:'the most cloud is expected over '},
+  {key:'humid', grid:'humid', name:'Humidity', unit:'%', low:false, S:HUMID, rain:false, legend:'Average relative humidity, %',
+   lead:'Most humid county', leadW:'Most humid ward', ext:'Most humid point', alert:v=>v>=80, alertL:'Counties at 80% humidity or more', alertLW:'Wards at 80% humidity or more',
+   phr:'counties average 80% humidity or more', verb:'the most humid air is expected in '},
+  {key:'dew', grid:'dew', name:'Dew point', unit:'°C', low:false, S:DEW, rain:false, legend:'Dew point (how much moisture is in the air), °C',
+   lead:'Most moist air', leadW:'Most moist ward', ext:'Highest dew point', alert:v=>v>=20, alertL:'Counties with dew point 20 °C or more (muggy)', alertLW:'Wards with dew point 20 °C or more (muggy)',
+   phr:'counties have muggy air, with a dew point of 20 °C or more', verb:'the most moist air is in '},
+  {key:'press', grid:'press', name:'Air pressure', unit:'hPa', low:false, S:PRESS, rain:false, legend:'Air pressure at sea level, hPa',
+   lead:'Highest pressure', leadW:'Highest-pressure ward', ext:'Highest pressure', alert:v=>v<=1008, alertL:'Counties with low pressure (1008 hPa or less)', alertLW:'Wards with low pressure (1008 hPa or less)',
+   phr:'counties have low pressure, at 1008 hPa or less', verb:'the highest air pressure is over '},
 ];
+const RANK = {rain:'Wettest', tmax:'Hottest', tmin:'Coldest', wind:'Windiest', sun:'Sunniest', soil:'Wettest-soil', cloud:'Cloudiest', humid:'Most humid', tavg:'Warmest', dew:'Most moist', press:'Highest-pressure'};
 // only the measures this KMD file contains, each remembering its place in the data
 const PAR = ALL_PAR.map((P, i) => Object.assign({i}, P)).filter(P => (K.params || ['rain','tmax','tmin']).includes(P.key) && K.grid[P.grid])
   .map(P => Object.assign(P, {i: (K.params || ['rain','tmax','tmin']).indexOf(P.key)}));
 const NS = 'http://www.w3.org/2000/svg';
 const $ = id => document.getElementById(id);
 const f1 = v => v == null ? '–' : (Math.round(v*10)/10).toFixed(1);
-const counties = SHAPES.counties.map((c, i) => Object.assign({m: K.counties[i]}, c));
-const wards = SHAPES.wards.map((w, i) => Object.assign({m: K.wards[i]}, w));
-const byName = new Map(counties.map((c, i) => [c.n, i]));
+const BASE = K;                 // the whole period
+let D = K, counties, wards, byName, G;
+const DAYS = BASE.days || 0, PERIODS = BASE.periods || [];
 const mean = (a, p) => a.m[PAR[p].i*2], extreme = (a, p) => a.m[PAR[p].i*2+1];
 const better = (p, a, b) => PAR[p].low ? a < b : a > b;
-const G = K.grid;
 
 const colorIn = (S, v, rain) => {
   if (v == null || isNaN(v)) return null;
@@ -258,6 +331,15 @@ const colorFill = (p, v) => colorIn(PAR[p].S, v, PAR[p].rain) || 'var(--mapbase)
 
 // ---------- the forecast grid, decoded once per parameter ----------
 const gridCache = {}, imgCache = {};
+const useData = (X) => {
+  D = X; G = X.grid;
+  counties = SHAPES.counties.map((c, i) => Object.assign({m: X.counties[i]}, c));
+  wards = SHAPES.wards.map((w, i) => Object.assign({m: X.wards[i]}, w));
+  byName = new Map(counties.map((c, i) => [c.n, i]));
+  for (const k in gridCache) delete gridCache[k];
+  for (const k in imgCache) delete imgCache[k];
+};
+useData(K);
 const gridOf = (name) => {
   if (gridCache[name]) return gridCache[name];
   const bin = atob(G[name]), buf = new ArrayBuffer(bin.length), u8 = new Uint8Array(buf);
@@ -295,20 +377,25 @@ const gridImage = (p) => {
 };
 
 // ---------- state ----------
-const st = {p:0, c:null};
+const st = {p:0, c:null, d:0};     // d: 0 = whole period, 1.. = one forecast day
 let sortKey = 'mean', sortDir = null, query = '';
 const readHash = () => {
   const parts = decodeURIComponent(location.hash.slice(1)).split('/');
   const p = PAR.findIndex(x => x.key === parts[0]); if (p >= 0) st.p = p;
-  st.c = parts[1] && byName.has(parts[1]) ? parts[1] : null;
+  st.c = null; let d = 0;
+  for (const part of parts.slice(1)) {
+    const m = /^day(\d+)$/.exec(part);
+    if (m) d = Math.min(Number(m[1]), DAYS); else if (byName.has(part)) st.c = part;
+  }
+  return d;
 };
 const writeHash = () => {
-  const h = '#' + PAR[st.p].key + (st.c ? '/' + encodeURIComponent(st.c) : '');
+  const h = '#' + PAR[st.p].key + (st.c ? '/' + encodeURIComponent(st.c) : '') + (st.d ? '/day' + st.d : '');
   if (location.hash === h) return;
   try { history.replaceState(null, '', h); } catch (_) { /* blocked in some previews */ }
 };
 const set = (o) => { Object.assign(st, o); writeHash(); render(); };
-window.addEventListener('hashchange', () => { readHash(); render(); });
+window.addEventListener('hashchange', () => { const d = readHash(); if (d !== st.d) setDay(d); else render(); });
 
 // ---------- tooltip ----------
 const showTip = (tipEl, ev, title, rows) => {
@@ -337,8 +424,32 @@ $('search').addEventListener('input', e => { query = e.target.value.trim().toLow
 
 const received = new Date(K.received);
 const recTxt = received.toLocaleString('en-GB', {timeZone:'Africa/Nairobi', weekday:'long', day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit'});
-$('valid').textContent = 'Kenya Meteorological Department forecast for the coming 7 days. Forecast file received ' + recTxt + ' EAT.';
-$('source').textContent = 'Forecast data: ' + K.source + ', 7-day forecast file received ' + recTxt + ' EAT. It is updated whenever a new KMD file is added.';
+const fmtD = s => new Date(s).toLocaleDateString('en-GB', {timeZone:'Africa/Nairobi', weekday:'short', day:'numeric', month:'short'});
+const fmtLong = s => new Date(s).toLocaleString('en-GB', {timeZone:'Africa/Nairobi', weekday:'long', day:'numeric', month:'long', hour:'2-digit', minute:'2-digit'});
+const nDays = () => st.d ? 1 : (DAYS || 7);
+const span = () => st.d ? 'on ' + fmtD(PERIODS[st.d - 1][0]) : 'over the ' + (DAYS ? DAYS : 7) + ' days';
+const cap = t => t[0].toUpperCase() + t.slice(1);
+const runTxt = BASE.run ? fmtLong(BASE.run) : null;
+$('title').textContent = 'Kenya ' + (DAYS || 7) + '-day outlook';
+$('source').textContent = 'Forecast data: ' + K.source + (runTxt ? ', WRF model run of ' + runTxt + ' EAT' : ', forecast file received ' + recTxt + ' EAT') + '. It is updated whenever a new KMD file is added.';
+const updateTexts = () => {
+  const n = nDays(), R = PAR.find(P => P.key === 'rain'), lim = st.d ? 10 : (n >= 7 ? 50 : 25);
+  if (R) Object.assign(R, {
+    name: st.d ? '24-hour rainfall' : n + '-day rainfall', S: n <= 3 ? RAIN_DAY : RAIN,
+    legend: st.d ? 'Rainfall in 24 hours (09:00 to 09:00 EAT), mm' : 'Total rainfall over ' + n + ' days, mm',
+    alert: v => v >= lim, alertL: 'Counties with ' + lim + ' mm or more', alertLW: 'Wards with ' + lim + ' mm or more',
+    phr: 'counties expect ' + lim + ' mm or more'});
+  PAR.forEach(P => {
+    if (P.key === 'tmax') Object.assign(P, {legend: 'Highest temperature ' + (st.d ? 'during the day' : 'in the ' + n + ' days') + ', °C', phr: 'counties reach 35 °C or above'});
+    if (P.key === 'tmin') Object.assign(P, {legend: 'Lowest temperature ' + (st.d ? 'during the day' : 'in the ' + n + ' days') + ', °C', phr: 'counties drop to 10 °C or below'});
+  });
+  [...$('params').children].forEach((b, i) => { b.textContent = PAR[i].name; });
+  $('valid').textContent = (runTxt ? 'KMD WRF forecast, model run of ' + runTxt + ' EAT. ' : 'Kenya Meteorological Department forecast. Forecast file received ' + recTxt + ' EAT. ')
+    + (st.d && PERIODS[st.d - 1] ? 'Showing Day ' + st.d + ': 09:00 EAT ' + fmtD(PERIODS[st.d - 1][0]) + ' to 09:00 EAT ' + fmtD(PERIODS[st.d - 1][1]) + '.'
+       : PERIODS.length ? 'Covers 09:00 EAT ' + fmtD(PERIODS[0][0]) + ' to 09:00 EAT ' + fmtD(PERIODS[PERIODS.length - 1][1]) + '.' : 'Covers the coming 7 days.');
+  $('countsNote').textContent = 'The counts use ' + lim + ' mm or more of rain' + (st.d ? ' in the day' : ' over the period') + ', a highest temperature of 35 °C or above, and a lowest temperature of 10 °C or below, based on each area’s average.';
+};
+
 if (Date.now() - received.getTime() > 7 * 864e5) $('valid').textContent += ' This forecast is more than a week old; a newer one may be available.';
 
 // ---------- summary and figures ----------
@@ -359,7 +470,7 @@ const renderTop = () => {
   if (!st.c) {
     const lead = pick(counties, p, mean, true), ext = pick(counties, p, extreme, true);
     const n = counties.filter(c => P.alert(mean(c,p))).length, avg = counties.reduce((s, c) => s + mean(c,p), 0) / counties.length;
-    sm.append('Over the next 7 days, ' + P.verb, strong(lead.n), ', averaging ', strong(f1(mean(lead,p)) + ' ' + P.unit), '. ', strong(String(n)), ' of ' + counties.length + ' ' + P.phr + '.');
+    sm.append(cap(span()) + ', ' + P.verb, strong(lead.n), ', averaging ', strong(f1(mean(lead,p)) + ' ' + P.unit), '. ', strong(String(n)), ' of ' + counties.length + ' ' + P.phr + '.');
     $('stats').replaceChildren(
       stat(P.lead, f1(mean(lead,p)), P.unit, lead.n),
       stat(P.ext + ' in Kenya', f1(extreme(ext,p)), P.unit, 'In ' + ext.n + ' County'),
@@ -368,7 +479,7 @@ const renderTop = () => {
   } else {
     const C = counties[byName.get(st.c)], W = wardsOf(st.c), lead = pick(W, p, mean, true);
     const n = W.filter(w => P.alert(mean(w,p))).length;
-    sm.append('Over the next 7 days in ', strong(st.c), ': an average of ', strong(f1(mean(C,p)) + ' ' + P.unit), ', with ', strong(lead.n), ' (' + lead.s + ') the ' + P.leadW.split(' ')[0].toLowerCase() + ' ward at ', strong(f1(mean(lead,p)) + ' ' + P.unit), '.');
+    sm.append(cap(span()) + ' in ', strong(st.c), ': an average of ', strong(f1(mean(C,p)) + ' ' + P.unit), ', with ', strong(lead.n), ' (' + lead.s + ') the ' + (RANK[P.key] || P.leadW.split(' ')[0]).toLowerCase() + ' ward at ', strong(f1(mean(lead,p)) + ' ' + P.unit), '.');
     $('stats').replaceChildren(
       stat(st.c + ' average', f1(mean(C,p)), P.unit, 'Average of all grid points in the county'),
       stat(P.ext + ' in ' + st.c, f1(extreme(C,p)), P.unit, 'Most extreme grid point'),
@@ -382,7 +493,7 @@ const pathEl = (d, cls) => { const e = document.createElementNS(NS, 'path'); e.s
 const renderMap = () => {
   const P = PAR[st.p], p = st.p, box = $('map'), tip = $('mapTip');
   $('mapTitle').textContent = P.name + (st.c ? ' in ' + st.c : ' across Kenya');
-  $('mapNote').textContent = st.c ? 'KMD’s forecast grid, with ward boundaries. Hover for the value at any point; click another county to switch, or the same county to go back.' : 'KMD’s forecast grid, about 4 km between points. Hover for the value at any point, or click a county to zoom in.';
+  $('mapNote').textContent = st.c ? 'Each ward shows its figure. Tap any spot for its exact value, tap another county to switch, or use “Back to all counties”.' : 'Each county shows its figure, and red pins mark the ' + (RANK[PAR[st.p].key] || 'top').toLowerCase() + ' spots. Tap any county to zoom in and see the exact value at that spot.';
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', SHAPES.view.join(' ')); svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Map of Kenya showing KMD ' + P.name.toLowerCase());
@@ -397,7 +508,7 @@ const renderMap = () => {
   img.setAttribute('width', G.nx * G.dx); img.setAttribute('height', G.ny * G.dy);
   img.setAttribute('preserveAspectRatio', 'none'); img.setAttribute('clip-path', 'url(#kenya)');
   img.style.pointerEvents = 'none';
-  svg.append(img);
+  svg.append(img); mapImgEl = img;
   if (st.c) counties.forEach(c => { if (c.n !== st.c) svg.append(pathEl(c.d, 'veil')); });
   counties.forEach(c => svg.append(pathEl(c.d, 'cline')));
   if (st.c) wardsOf(st.c).forEach(w => w.d && svg.append(pathEl(w.d, 'wline')));
@@ -407,7 +518,7 @@ const renderMap = () => {
   counties.forEach(c => {
     if (st.c && c.n === st.c) { sel = c; return; }
     const e = pathEl(c.d, 'hit');
-    e.addEventListener('click', () => set({c: c.n}));
+    e.addEventListener('click', (ev) => { tapAt(svg, ev); set({c: c.n}); });
     e.addEventListener('pointermove', ev => { const v = pointValue(svg, ev); showTip(tip, ev, c.n, [[v.color, 'Here: ' + f1(v.v) + ' ' + P.unit + (v.dir || '')], [null, 'County average: ' + f1(mean(c,p)) + ' ' + P.unit]]); });
     e.addEventListener('pointerleave', () => hideTip(tip));
     svg.append(e);
@@ -416,7 +527,7 @@ const renderMap = () => {
     wardsOf(st.c).forEach(w => {
       if (!w.d) return;
       const e = pathEl(w.d, 'hit');
-      e.addEventListener('click', () => set({c: null}));
+      e.addEventListener('click', (ev) => tapAt(svg, ev));
       e.addEventListener('pointermove', ev => { const v = pointValue(svg, ev); showTip(tip, ev, w.n, [[null, w.s + ', ' + st.c], [v.color, 'Here: ' + f1(v.v) + ' ' + P.unit + (v.dir || '')], [null, 'Ward average: ' + f1(mean(w,p)) + ' ' + P.unit]]); });
       e.addEventListener('pointerleave', () => hideTip(tip));
       svg.append(e);
@@ -425,7 +536,9 @@ const renderMap = () => {
     try { const b = o.getBBox(), pad = Math.max(b.width, b.height)*.1; svg.setAttribute('viewBox', [b.x-pad, b.y-pad, b.width+2*pad, b.height+2*pad].join(' ')); } catch (_) {}
   }
   drawLabels(svg, labelLayer);
-  if (P.key === 'wind' && G.u && G.v) drawArrows(svg, labelLayer);
+  if (P.key === 'wind' && G.u && G.v && !slowOn) drawArrows(svg, labelLayer);
+  if (tap) showTap();
+  if (slowOn) { paintSlow(true); return; }
   // legend
   const S = P.S, n = S.colors.length;
   $('legendTitle').textContent = P.legend;
@@ -464,27 +577,63 @@ const drawArrows = (svg, before) => {
   g.append(path); before.before(g);
 };
 
-// county names: drawn at a fixed screen size, skipping any that would overlap a bigger county's name
+// county names with their amounts, and pins on the hotspots, at a fixed screen size without overlaps
 const PRIORITY = ['Nairobi', 'Mombasa'];
+const centre = (w) => {   // middle of a ward, from its outline
+  if (w._c) return w._c;
+  let x = 0, y = 0, n = 0;
+  w.d.replace(/[MLZ]/g, ' ').trim().split(/\s+/).forEach(pt => { const [a, b] = pt.split(',').map(Number); if (!isNaN(a)) { x += a; y += b; n++; } });
+  return (w._c = n ? [x / n, y / n] : null);
+};
+const hotspots = () => {
+  const P = PAR[st.p], p = st.p, list = (st.c ? wardsOf(st.c) : wards.filter(w => w.m[0] != null)).filter(w => mean(w, p) != null);
+  list.sort((a, b) => better(p, mean(a, p), mean(b, p)) ? -1 : 1);
+  let top = list.slice(0, st.c ? 3 : 6);
+  if (P.key === 'rain') top = top.filter(w => mean(w, p) >= (st.d ? 5 : 10));
+  return top;
+};
 const drawLabels = (svg, layer) => {
   const vb = svg.viewBox.baseVal, rect = svg.getBoundingClientRect();
   if (!rect.width) return;
-  const k = Math.max(vb.width / rect.width, vb.height / rect.height);   // map units per screen pixel
-  const size = (rect.width < 420 ? 10 : 12) * k;
+  const k = Math.max(vb.width / rect.width, vb.height / rect.height);
+  const size = (rect.width < 420 ? 10 : 12) * k, P = PAR[st.p], showVal = !slowOn;
+  const kept = [];
+  const fits = (b) => !kept.some(q => b.x0 < q.x1 && b.x1 > q.x0 && b.y0 < q.y1 && b.y1 > q.y0);
+  const txt = (x, y, str, sz, cls) => { const t = document.createElementNS(NS, 'text'); t.setAttribute('class', cls); t.setAttribute('x', x); t.setAttribute('y', y);
+    t.setAttribute('font-size', sz); t.setAttribute('stroke-width', sz * 0.28); t.textContent = str; layer.append(t); return t; };
+  // hotspot pins first, so they always show
+  if (showVal) for (const w of hotspots()) {
+    const c = centre(w); if (!c || c[0] < vb.x || c[0] > vb.x + vb.width || c[1] < vb.y || c[1] > vb.y + vb.height) continue;
+    const dot = document.createElementNS(NS, 'circle'); dot.setAttribute('cx', c[0]); dot.setAttribute('cy', c[1]); dot.setAttribute('r', 4.5 * k); dot.setAttribute('class', 'hotdot');
+    const t = txt(c[0] + 7 * k, c[1], w.n + ' · ' + f1(mean(w, st.p)) + ' ' + P.unit, size * 0.92, 'hotlabel');
+    const wd = t.getComputedTextLength(), h = size * 1.1;
+    const b = {x0: c[0] - 5 * k, x1: c[0] + 9 * k + wd, y0: c[1] - h / 2, y1: c[1] + h / 2};
+    if (!fits(b)) { t.remove(); continue; }
+    layer.append(dot); kept.push(b);
+  }
+  // county names, with the county figure underneath
   const order = counties.map((c, i) => ({c, i, area: c.bboxArea || 0}));
   order.forEach(o => { if (!o.c.bboxArea) { const b = Poly(o.c.d); o.c.bboxArea = b; o.area = b; } });
   order.sort((a, b) => (PRIORITY.includes(b.c.n) - PRIORITY.includes(a.c.n)) || (b.area - a.area));
-  const kept = [];
   for (const {c} of order) {
     if (c.lx < vb.x || c.lx > vb.x + vb.width || c.ly < vb.y || c.ly > vb.y + vb.height) continue;
-    const t = document.createElementNS(NS, 'text');
-    t.setAttribute('class', 'clabel'); t.setAttribute('x', c.lx); t.setAttribute('y', c.ly);
-    t.setAttribute('font-size', size); t.setAttribute('stroke-width', size * 0.28);
-    t.textContent = c.n; layer.append(t);
-    const w = t.getComputedTextLength(), h = size * 1.1;
-    const box = {x0: c.lx - w/2 - size*.2, x1: c.lx + w/2 + size*.2, y0: c.ly - h/2, y1: c.ly + h/2};
-    if (kept.some(q => box.x0 < q.x1 && box.x1 > q.x0 && box.y0 < q.y1 && box.y1 > q.y0)) { t.remove(); continue; }
-    kept.push(box);
+    if (st.c && c.n !== st.c) continue;
+    const v = mean(c, st.p), two = showVal && v != null;
+    const t1 = txt(c.lx, c.ly - (two ? size * 0.5 : 0), c.n, size, 'clabel');
+    const t2 = two ? txt(c.lx, c.ly + size * 0.62, f1(v) + ' ' + P.unit, size * 0.9, 'cvalue') : null;
+    const w = Math.max(t1.getComputedTextLength(), t2 ? t2.getComputedTextLength() : 0), h = size * (two ? 2.2 : 1.1);
+    const b = {x0: c.lx - w / 2 - size * .2, x1: c.lx + w / 2 + size * .2, y0: c.ly - h / 2, y1: c.ly + h / 2};
+    if (!fits(b)) { t1.remove(); if (t2) t2.remove(); continue; }
+    kept.push(b);
+  }
+  // in a county, label its wards with their figures where they fit
+  if (st.c && showVal) for (const w of wardsOf(st.c)) {
+    const c = centre(w); if (!c) continue;
+    const t = txt(c[0], c[1], f1(mean(w, st.p)), size * 0.82, 'wvalue');
+    const wd = t.getComputedTextLength(), h = size;
+    const b = {x0: c[0] - wd / 2 - 2 * k, x1: c[0] + wd / 2 + 2 * k, y0: c[1] - h / 2, y1: c[1] + h / 2};
+    if (!fits(b)) { t.remove(); continue; }
+    kept.push(b);
   }
 };
 const Poly = (d) => {   // rough area of a county from its outline's bounding box
@@ -492,9 +641,83 @@ const Poly = (d) => {   // rough area of a county from its outline's bounding bo
   d.replace(/[MLZ]/g, ' ').trim().split(/\s+/).forEach(pt => { const [x, y] = pt.split(',').map(Number); if (isNaN(x)) return; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); });
   return (x1 - x0) * (y1 - y0);
 };
+let tap = null;   // the last spot tapped: {lon, lat}
+const ringsOf = (o) => o._rings || (o._rings = o.d.split('M').filter(Boolean).map(r => r.replace(/[LZ]/g, ' ').trim().split(/\s+/).map(q => q.split(',').map(Number))));
+const inside = (o, x, y) => { let r = false; for (const pts of ringsOf(o)) for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) r = !r; } return r; };
+const placeAt = (lon, lat) => {
+  const x = lon, y = -lat, c = counties.find(c => inside(c, x, y)); if (!c) return {};
+  const ci = byName.get(c.n), w = wards.find(w => w.c === ci && w.d && inside(w, x, y));
+  return {county: c, ward: w};
+};
+const tapAt = (svg, ev) => {
+  const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+  const q = pt.matrixTransform(svg.getScreenCTM().inverse());
+  tap = {lon: q.x, lat: -q.y}; showTap();
+};
+const showTap = () => {
+  const box = $('tapInfo'); if (!tap) return;
+  const P = PAR[st.p], {county, ward} = placeAt(tap.lon, tap.lat);
+  const v = slowOn ? slowValue(tap.lon, tap.lat) : gridValue(P.grid, tap.lon, tap.lat);
+  box.classList.add('on'); box.replaceChildren();
+  if (!county) { box.textContent = 'That spot is outside Kenya. Tap inside the country to see its figure.'; return; }
+  const where = (ward ? ward.n + ' ward, ' : '') + county.n + ' County';
+  const sc = slowOn ? slowScale() : null;
+  box.append('📍 ', strong(where), ': ', strong(v == null ? 'no data' : f1(v) + ' ' + P.unit),
+    slowOn ? (sc.rain ? ' of rain in these 3 hours' : ' at this moment') + ' in the animation' : ' at this spot ' + span(), '. ',
+    ...(slowOn ? [] : [ward && mean(ward, st.p) != null ? 'Ward average ' + f1(mean(ward, st.p)) + ' ' + P.unit + ', ' : '', 'county average ' + f1(mean(county, st.p)) + ' ' + P.unit + '.']));
+  const svg = document.querySelector('#map svg'); if (!svg) return;
+  svg.querySelector('.tapdot')?.remove();
+  const vb = svg.viewBox.baseVal, rect = svg.getBoundingClientRect(), k = Math.max(vb.width / rect.width, vb.height / rect.height);
+  const c = document.createElementNS(NS, 'circle'); c.setAttribute('class', 'tapdot'); c.setAttribute('cx', tap.lon); c.setAttribute('cy', -tap.lat); c.setAttribute('r', 7 * k); svg.append(c);
+};
+
+// ---------- where will it rain (or be hottest, windiest...) in plain words
+const renderWhere = () => {
+  const box = $('where'), P = PAR[st.p], p = st.p; box.replaceChildren();
+  const list = (st.c ? wardsOf(st.c) : wards.filter(w => w.m[0] != null)).filter(w => mean(w, p) != null);
+  const head = document.createElement('h2');
+  const band = (color, label, text) => { const d = document.createElement('div'); d.className = 'band'; const sw = document.createElement('i'); sw.className = 'sw'; sw.style.background = color;
+    const l = document.createElement('div'); l.className = 'bl'; l.textContent = label; const t = document.createElement('div'); t.className = 'bt'; t.append(...text); d.append(sw, l, t); return d; };
+  const byCounty = (ws, max) => {   // "Meru (Kiegoi 31 mm, Antuambui 28 mm), Embu (…)"
+    const g = new Map(); ws.forEach(w => { const cn = counties[w.c].n; if (!g.has(cn)) g.set(cn, []); g.get(cn).push(w); });
+    const rows = [...g.entries()].sort((a, b) => Math.max(...b[1].map(w => mean(w, p))) - Math.max(...a[1].map(w => mean(w, p))));
+    const out = []; rows.slice(0, max).forEach(([cn, arr], i) => {
+      arr.sort((a, b) => mean(b, p) - mean(a, p));
+      const names = arr.slice(0, 3).map(w => w.n + ' ' + f1(mean(w, p)) + ' ' + P.unit).join(', ') + (arr.length > 3 ? ', +' + (arr.length - 3) + ' more wards' : '');
+      const b = document.createElement('strong'); b.textContent = cn; const sp = document.createElement('span'); sp.textContent = ' (' + names + ')';
+      out.push(...(i ? ['; '] : []), b, sp);
+    });
+    if (rows.length > max) out.push(' and ' + (rows.length - max) + ' more counties');
+    return out;
+  };
+  const wardList = (ws) => { const out = []; ws.slice(0, 12).forEach((w, i) => { const b = document.createElement('strong'); b.textContent = w.n; out.push(...(i ? [', '] : []), b, ' ' + f1(mean(w, p)) + ' ' + P.unit); }); if (ws.length > 12) out.push(', +' + (ws.length - 12) + ' more'); return out; };
+  if (P.key === 'rain') {
+    const day = !!st.d || (DAYS || 7) === 1, f = day ? 1 : 2;
+    const H = 20 * f, M = 10 * f, L = 1 * f;
+    head.textContent = 'Where will it rain ' + span() + (st.c ? ' in ' + st.c : '') + '?';
+    const by = (lo, hi) => list.filter(w => mean(w, p) >= lo && mean(w, p) < hi).sort((a, b) => mean(b, p) - mean(a, p));
+    const heavy = by(H, 1e9), mod = by(M, H), light = by(L, M), dry = list.filter(w => mean(w, p) < L);
+    box.append(head);
+    const show = (arr) => st.c ? wardList(arr) : byCounty(arr, 6);
+    if (heavy.length) box.append(band(colorFill(p, H + 1), 'Heavy rain (' + H + ' mm or more)', show(heavy)));
+    if (mod.length) box.append(band(colorFill(p, M + 0.1), 'Moderate rain (' + M + ' to ' + H + ' mm)', show(mod)));
+    if (light.length) box.append(band(colorFill(p, L + 0.1), 'Light rain (' + L + ' to ' + M + ' mm)', show(light)));
+    const dryCounties = st.c ? [] : counties.filter(c => wardsOf(c.n).every(w => mean(w, p) < L)).map(c => c.n);
+    if (!heavy.length && !mod.length && !light.length) box.append(band('var(--mapbase)', 'Dry', ['No rain expected.']));
+    else if (st.c ? dry.length : dryCounties.length) box.append(band('var(--mapbase)', 'Dry', [st.c ? dry.length + ' of ' + list.length + ' wards stay dry.' : dryCounties.length + ' counties stay dry, including ' + dryCounties.slice(0, 8).join(', ') + (dryCounties.length > 8 ? '…' : '.')]));
+  } else {
+    head.textContent = P.name + ' ' + span() + (st.c ? ' in ' + st.c : '') + ': highest and lowest';
+    const sorted = [...list].sort((a, b) => mean(b, p) - mean(a, p));
+    box.append(head,
+      band(colorFill(p, mean(sorted[0], p)), 'Highest', st.c ? wardList(sorted.slice(0, 5)) : byCounty(sorted.slice(0, 15), 4)),
+      band(colorFill(p, mean(sorted[sorted.length - 1], p)), 'Lowest', st.c ? wardList(sorted.slice(-5).reverse()) : byCounty(sorted.slice(-15).reverse(), 4)));
+  }
+};
+
 const pointValue = (svg, ev) => {
   const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
   const q = pt.matrixTransform(svg.getScreenCTM().inverse());
+  if (slowOn) { const v = slowValue(q.x, -q.y); return {v, dir: '', color: v == null ? null : colorIn(slowScale().S, v, slowScale().rain)}; }
   const v = gridValue(PAR[st.p].grid, q.x, -q.y);
   let dir = '';
   if (PAR[st.p].key === 'wind' && G.u) {
@@ -511,8 +734,8 @@ const pointValue = (svg, ev) => {
 const renderTable = () => {
   const P = PAR[st.p], p = st.p, ward = !!st.c;
   $('tableTitle').textContent = ward ? 'Wards in ' + st.c : 'All counties';
-  $('tableNote').textContent = P.name + ' (' + P.unit + ') over the next 7 days.' + (ward ? '' : ' Select a county to open it.');
-  const cols = ward ? [['name','Ward',0],['con','Constituency',0],['mean','Average',1],['ext',P.ext.split(' ')[0] + ' point',1]] : [['name','County',0],['mean','Average',1],['ext',P.ext.split(' ')[0] + ' point',1]];
+  $('tableNote').textContent = P.name + ' (' + P.unit + ') ' + span() + '.' + (ward ? '' : ' Select a county to open it.');
+  const cols = ward ? [['name','Ward',0],['con','Constituency',0],['mean','Average',1],['ext',P.ext,1]] : [['name','County',0],['mean','Average',1],['ext',P.ext,1]];
   if (!cols.some(c => c[0] === sortKey)) { sortKey = 'mean'; sortDir = null; }
   const dir = sortDir || (cols.find(c => c[0] === sortKey)[2] ? (P.low ? 'ascending' : 'descending') : 'ascending');
   $('thead').replaceChildren(...cols.map(([key, label, num]) => {
@@ -566,8 +789,8 @@ const renderRank = () => {
   rows.sort((a, b) => P.low ? a.v - b.v : b.v - a.v);
   const total = rows.length, LIMIT = 15, shown = rankAll ? rows : rows.slice(0, LIMIT);
   const what = ward ? 'wards in ' + st.c : 'counties';
-  $('rankTitle').textContent = P.lead.split(' ')[0] + ' ' + what;
-  $('rankNote').textContent = P.name + ' (' + P.unit + ') over the next 7 days, by ' + (ward ? 'ward' : 'county') + ' average.' + (ward ? '' : ' Select a bar to open that county.');
+  $('rankTitle').textContent = (RANK[P.key] || P.lead.split(' ')[0]) + ' ' + what;
+  $('rankNote').textContent = P.name + ' (' + P.unit + ') ' + span() + ', by ' + (ward ? 'ward' : 'county') + ' average.' + (ward ? '' : ' Select a bar to open that county.');
   $('rankMore').hidden = total <= LIMIT;
   $('rankMore').textContent = rankAll ? 'Show top ' + LIMIT + ' only' : 'Show all ' + total + ' ' + (ward ? 'wards' : 'counties');
   const ref = ward ? mean(counties[byName.get(st.c)], p) : counties.reduce((a, c) => a + mean(c,p), 0) / counties.length;
@@ -594,12 +817,139 @@ const renderRank = () => {
   if (ref >= lo && ref <= hi) mk('line', {x1: x(ref), x2: x(ref), y1: top, y2: H - 4, stroke: 'var(--ink)', 'stroke-width': 1.2, 'stroke-dasharray': '4 3', opacity: .7});
 };
 
+// ---------- forecast days ----------
+const loadScript = (src) => new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = src + '?v=' + Date.now(); sc.onload = res; sc.onerror = rej; document.head.append(sc); });
+const dayData = {};
+async function setDay(d) {
+  if (d && !dayData[d]) {
+    try { await loadScript('kmd-day' + d + '.js'); dayData[d] = window['KMD_DAY_' + d]; } catch (_) { dayData[d] = null; }
+    if (!dayData[d]) d = 0;
+  }
+  st.d = d; useData(d ? dayData[d] : BASE); writeHash(); render();
+}
+const renderDays = () => {
+  const nav = $('kdays');
+  if (!DAYS || !PERIODS.length) { nav.hidden = true; return; }
+  nav.hidden = false;
+  const btn = (d, top, sub) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'kday'; b.dataset.d = d;
+    b.setAttribute('aria-pressed', st.d === d); const t = document.createElement('b'); t.textContent = top; const u = document.createElement('span'); u.textContent = sub; b.append(t, u);
+    b.addEventListener('click', () => setDay(d)); return b; };
+  const now = Date.now();
+  nav.replaceChildren(btn(0, 'All ' + DAYS + ' days', fmtD(PERIODS[0][0]) + ' to ' + fmtD(PERIODS[PERIODS.length - 1][1])),
+    ...PERIODS.map((pp, i) => { const b = btn(i + 1, 'Day ' + (i + 1), fmtD(pp[0])); if (now >= Date.parse(pp[0]) && now < Date.parse(pp[1])) { b.classList.add('kday-now'); b.title = 'Today'; } return b; }));
+};
+
+// ---------- slow motion: KMD's model hour by hour, blended smoothly ----------
+let A = null, slowOn = false, slowT = 0, playing = false, lastTs = 0, lastPaint = 0, mapImgEl = null, slowCanvas = null;
+const animGrids = {};
+const ANIM_OF = {rain: 'rain', tmax: 'temp', tmin: 'temp', tavg: 'temp', wind: 'wind', cloud: 'cloud', humid: 'humid', dew: 'dew', press: 'press'};
+const slowScale = () => {
+  const v = ANIM_OF[PAR[st.p].key];
+  return v === 'rain' ? {S: RAIN3, rain: true, title: 'Rainfall in each 3 hours, mm'} : v === 'temp' ? {S: TEMP, rain: false, title: 'Temperature, °C'}
+    : v === 'wind' ? {S: WIND, rain: false, title: 'Wind speed, km/h'} : v === 'cloud' ? {S: CLOUD, rain: false, title: 'Cloud cover, %'}
+    : v === 'dew' ? {S: DEW, rain: false, title: 'Dew point, °C'} : v === 'press' ? {S: PRESS, rain: false, title: 'Air pressure at sea level, hPa'} : {S: HUMID, rain: false, title: 'Relative humidity, %'};
+};
+const decode = (b64) => { const bin = atob(b64), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return new Int16Array(u8.buffer); };
+const updateSlowNote = () => {
+  if (!A) return;
+  const ok = !!ANIM_OF[PAR[st.p].key] && A.vars.includes(ANIM_OF[PAR[st.p].key]);
+  $('slowGo').disabled = !ok; $('slowGo').style.opacity = ok ? 1 : .5;
+  $('slowNote').textContent = ok ? (slowOn ? '' : 'Watch KMD’s forecast change hour by hour, blending smoothly between 3-hour steps.')
+    : 'Slow motion is available for every measure in the WRF file.';
+};
+loadScript('kmd-anim-meta.js').then(() => { A = window.KMD_ANIM_META || null; if (A) { $('slow').hidden = false; $('slowRange').max = A.frames - 1; updateSlowNote(); } }).catch(() => {});
+async function animGrid(name) {
+  if (animGrids[name]) return animGrids[name];
+  const key = 'KMD_ANIM_' + name.toUpperCase();
+  if (!window[key]) await loadScript('kmd-anim-' + name + '.js');
+  return (animGrids[name] = decode(window[key]));
+}
+const slowValue = (lon, lat) => {
+  const g = animGrids[ANIM_OF[PAR[st.p].key]]; if (!g) return null; const a = A.grid;
+  const c = Math.round((lon - a.lon0) / a.dx), r = Math.round((a.lat_top - lat) / a.dy);
+  if (c < 0 || r < 0 || c >= a.nx || r >= a.ny) return null;
+  const v = g[Math.min(A.frames - 1, Math.round(slowT)) * a.nx * a.ny + r * a.nx + c]; return v === a.nodata ? null : v / 10;
+};
+const UPS = 3;
+const paintSlow = (setup) => {
+  const name = ANIM_OF[PAR[st.p].key], g = animGrids[name]; if (!g || !mapImgEl) return;
+  const a = A.grid, nx = a.nx, ny = a.ny, W = nx * UPS, H = ny * UPS, n = nx * ny, sc = slowScale();
+  if (setup) {
+    mapImgEl.setAttribute('x', a.lon0 - a.dx / 2); mapImgEl.setAttribute('y', -(a.lat_top + a.dy / 2));
+    mapImgEl.setAttribute('width', nx * a.dx); mapImgEl.setAttribute('height', ny * a.dy);
+    drawLegend(sc.S, sc.title, sc.rain);
+  }
+  if (!slowCanvas) slowCanvas = document.createElement('canvas');
+  slowCanvas.width = W; slowCanvas.height = H;
+  const ctx = slowCanvas.getContext('2d'), im = ctx.createImageData(W, H), rgb = {};
+  const k0 = Math.min(A.frames - 1, Math.floor(slowT)), k1 = Math.min(A.frames - 1, k0 + 1), tt = slowT - Math.floor(slowT);
+  const o0 = k0 * n, o1 = k1 * n, ND = a.nodata;
+  const at = (r, c) => { r = r < 0 ? 0 : r >= ny ? ny - 1 : r; c = c < 0 ? 0 : c >= nx ? nx - 1 : c; const i = r * nx + c, p = g[o0 + i], q = g[o1 + i]; return p === ND || q === ND ? NaN : p + (q - p) * tt; };
+  for (let y = 0; y < H; y++) {
+    const fy = (y + .5) / UPS - .5, r0 = Math.floor(fy), ty = fy - r0;
+    for (let x = 0; x < W; x++) {
+      const fx = (x + .5) / UPS - .5, c0 = Math.floor(fx), tx = fx - c0;
+      const v = ((at(r0, c0) * (1 - tx) + at(r0, c0 + 1) * tx) * (1 - ty) + (at(r0 + 1, c0) * (1 - tx) + at(r0 + 1, c0 + 1) * tx) * ty) / 10;
+      if (isNaN(v)) continue;
+      const col = colorIn(sc.S, v, sc.rain); if (!col) continue;
+      const kk = rgb[col] || (rgb[col] = hex(col)), i = (y * W + x) * 4;
+      im.data[i] = kk[0]; im.data[i + 1] = kk[1]; im.data[i + 2] = kk[2]; im.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(im, 0, 0);
+  mapImgEl.setAttribute('href', slowCanvas.toDataURL());
+  const step = A.step_hours * 3600e3, t0 = Date.parse(A.start) + Math.floor(slowT) * step, tNow = Date.parse(A.start) + slowT * step;
+  const hm = ms => new Date(ms + 3 * 3600e3).toISOString().slice(11, 16);
+  $('slowTime').textContent = fmtD(new Date(tNow).toISOString()) + ', ' + (sc.rain ? hm(t0) + '–' + hm(t0 + step) + ' EAT' : hm(Math.round(tNow / 9e5) * 9e5) + ' EAT');
+  $('slowRange').value = slowT;
+  document.querySelectorAll('.kday').forEach(b => { const d = Number(b.dataset.d), pp = PERIODS[d - 1]; b.style.boxShadow = d && pp && tNow >= Date.parse(pp[0]) && tNow < Date.parse(pp[1]) ? 'inset 0 -4px 0 var(--lake)' : ''; });
+};
+const drawLegend = (S, title, rain) => {
+  const n = S.colors.length;
+  $('legendTitle').textContent = title;
+  $('ramp').replaceChildren(...S.colors.map(c => { const sp = document.createElement('span'); sp.style.background = c; return sp; }));
+  const narrow = $('ramp').clientWidth < 420;
+  $('ticks').replaceChildren(...S.levels.map((lv, i) => {
+    const sp = document.createElement('span'); sp.textContent = lv;
+    sp.style.left = ((rain ? i / n : (i + 1) / n) * 100) + '%';
+    if (rain && i === 0) sp.style.transform = 'none';
+    if (rain && i === S.levels.length - 1) sp.style.transform = 'translateX(-100%)';
+    if (narrow && rain && ((i % 2 === 1 && i !== S.levels.length - 1) || i === S.levels.length - 2)) sp.style.display = 'none';
+    return sp;
+  }));
+};
+const tick = (ts) => {
+  if (!playing) return;
+  const dt = lastTs ? Math.min(250, ts - lastTs) : 0; lastTs = ts;
+  slowT += dt / 1000 * Number($('slowSpeed').value);
+  if (slowT > A.frames - 1) slowT = 0;
+  if (ts - lastPaint > 70) { lastPaint = ts; paintSlow(false); if (tap) showTap(); }
+  requestAnimationFrame(tick);
+};
+const play = () => { playing = true; lastTs = 0; $('slowPlay').textContent = '❚❚ Pause'; requestAnimationFrame(tick); };
+const pause = () => { playing = false; $('slowPlay').textContent = '▶ Play'; };
+async function startSlow() {
+  const name = ANIM_OF[PAR[st.p].key]; if (!name) return;
+  $('slowGo').textContent = 'Loading…';
+  try { await animGrid(name); } catch (_) { $('slowGo').textContent = '▶ Play in slow motion'; $('slowNote').textContent = 'The animation data could not be loaded.'; return; }
+  slowOn = true; $('slowGo').hidden = true; $('slowCtl').hidden = false; updateSlowNote();
+  if (st.d && PERIODS[st.d - 1]) slowT = Math.max(0, Math.min(A.frames - 1, (Date.parse(PERIODS[st.d - 1][0]) - Date.parse(A.start)) / (A.step_hours * 3600e3)));
+  renderMap(); play();
+}
+const stopSlow = () => { pause(); slowOn = false; $('slowGo').hidden = false; $('slowGo').textContent = '▶ Play in slow motion'; $('slowCtl').hidden = true; document.querySelectorAll('.kday').forEach(b => b.style.boxShadow = ''); updateSlowNote(); renderMap(); };
+$('slowGo').addEventListener('click', startSlow);
+$('slowPlay').addEventListener('click', () => playing ? pause() : play());
+$('slowStop').addEventListener('click', stopSlow);
+$('slowRange').addEventListener('input', e => { pause(); slowT = Number(e.target.value); paintSlow(false); });
+
 const render = () => {
+  updateTexts(); renderDays(); updateSlowNote();
+  if (slowOn) { const name = ANIM_OF[PAR[st.p].key]; if (!name) stopSlow(); else if (!animGrids[name]) { pause(); animGrid(name).then(() => { renderMap(); play(); }); } }
   [...$('params').children].forEach((b, i) => b.setAttribute('aria-pressed', i === st.p));
   $('county').value = st.c || ''; $('allBtn').hidden = !st.c;
-  renderTop(); renderMap(); renderTable(); renderRank();
+  renderTop(); renderWhere(); renderMap(); renderTable(); renderRank();
 };
-readHash(); writeHash(); render();
+{ const d0 = readHash(); writeHash(); render(); if (d0) setDay(d0); }
 let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { renderMap(); renderRank(); }, 150); });
 }
 </script>
