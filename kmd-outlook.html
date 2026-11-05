@@ -176,6 +176,23 @@ footer p{margin:0 0 6px}
 .hotkey{display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--muted);margin:8px 0 0}
 .hotkey i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 2px var(--surface)}
 .hotkey[hidden]{display:none}
+.dl{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+.dl button{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;color:var(--lake);font-size:.9rem}
+.print-only{display:none}
+@media print{
+  @page{size:A4;margin:12mm}
+  body{background:#fff;color:#000}
+  .wrap{max-width:none;padding:0}
+  .controls,.kdays,.dl,.slow,.search,.tapinfo,.kfx-bar,.kfx-menu,.kfx-login,.kfx-actions,.kfx-staffrow,.links,#rankMore,.tip,button{display:none!important}
+  .layout{display:block}
+  .panel,.where,.stats,.kfx-info{break-inside:avoid;border-color:#ccc;box-shadow:none}
+  .map{max-height:none;aspect-ratio:auto;height:155mm}
+  .tbox{max-height:none;overflow:visible}
+  .side{margin-top:6mm}
+  .print-only{display:block;color:#555;font-size:9pt;margin-top:4mm}
+  a{color:#000;text-decoration:none}
+}
+
 .tapdot{fill:none;stroke:var(--ink);stroke-width:2.5px;vector-effect:non-scaling-stroke;pointer-events:none}
 .rank svg{display:block;width:100%;height:auto}
 .rank .bar{cursor:pointer}
@@ -207,6 +224,7 @@ footer p{margin:0 0 6px}
     <section class="panel">
       <h2 id="mapTitle"></h2>
       <p class="note" id="mapNote"></p>
+      <div class="dl"><button type="button" id="dlPng">⬇ Map (PNG)</button><button type="button" id="dlPdf">⬇ PDF</button></div>
       <div class="slow" id="slow" hidden>
         <button type="button" class="slow-go" id="slowGo">▶ Play in slow motion</button>
         <div class="slow-ctl" id="slowCtl" hidden>
@@ -244,6 +262,7 @@ footer p{margin:0 0 6px}
     <div class="tip" id="rankTip"></div>
   </section>
 
+  <p class="print-only" id="printNote"></p>
   <footer>
     <p id="source"></p>
     <p>The map shows KMD’s forecast grid, with points about 4 km apart. County and ward figures are the average of all grid points inside each area; the wettest, hottest or coldest point is the most extreme grid value inside it.</p>
@@ -962,8 +981,65 @@ $('slowPlay').addEventListener('click', () => playing ? pause() : play());
 $('slowStop').addEventListener('click', stopSlow);
 $('slowRange').addEventListener('input', e => { pause(); slowT = Number(e.target.value); paintSlow(false); });
 
+
+// ---------- download the map as a picture, or the page as a PDF ----------
+const LIGHT = {'--ink': '#0e2a33', '--muted': '#566b72', '--surface': '#ffffff', '--paper': '#f3f6f5', '--line': '#d3dedf', '--mapbase': '#e9efee', '--lake': '#0b6e99', '--today': '#b25e00'};
+const mapStyles = () => {   // the page's style rules, with colours fixed to the light look and no dark-mode rules
+  const root = getComputedStyle(document.documentElement);
+  let css = '';
+  for (const sh of document.styleSheets) {
+    let rules; try { rules = sh.cssRules; } catch (_) { continue; }
+    for (const r of rules) { if (r.media && /prefers-color-scheme/.test(r.media.mediaText)) continue; if (r.media && /print/.test(r.media.mediaText)) continue; css += r.cssText + '\n'; }
+  }
+  return css.replace(/var\((--[a-z0-9-]+)(?:,[^)]*)?\)/gi, (m, n) => LIGHT[n] || root.getPropertyValue(n).trim() || '#000');
+};
+async function downloadMapPNG() {
+  const btn = $('dlPng'); const label = btn.textContent; btn.textContent = 'Preparing…'; btn.disabled = true;
+  try {
+    const src = document.querySelector('#map svg'); if (!src) throw new Error('no map');
+    const rect = src.getBoundingClientRect(), SC = 2;
+    const W = Math.round(rect.width * SC), H = Math.round(rect.height * SC);
+    const clone = src.cloneNode(true);
+    const style = document.createElementNS(NS, 'style'); style.textContent = 'svg{font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif}\n' + mapStyles(); clone.insertBefore(style, clone.firstChild);
+    clone.querySelectorAll('[style]').forEach(e => { e.setAttribute('style', e.getAttribute('style').replace(/var\((--[a-z0-9-]+)(?:,[^)]*)?\)/gi, (m, n) => LIGHT[n] || '#000')); });
+    clone.querySelectorAll('.hit').forEach(e => e.remove());
+    clone.setAttribute('width', W); clone.setAttribute('height', H); clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const xml = new XMLSerializer().serializeToString(clone);
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml); });
+    const css = getComputedStyle(document.documentElement), col = n => css.getPropertyValue(n).trim() || '#000';
+    const pad = 48, headH = 150, legH = 120, footH = 60, CW = W + pad * 2, CH = headH + H + legH + footH;
+    const cv = document.createElement('canvas'); cv.width = CW; cv.height = CH;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, CW, CH);
+    const font = (w, s) => w + ' ' + s + 'px "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif';
+    const P = PAR[st.p], when = st.d && PERIODS[st.d - 1] ? 'Day ' + st.d + ' · ' + fmtD(PERIODS[st.d - 1][0]) : (PERIODS.length ? fmtD(PERIODS[0][0]) + ' to ' + fmtD(PERIODS[PERIODS.length - 1][1]) : 'Next 7 days');
+    ctx.fillStyle = '#0e2a33'; ctx.font = font(700, 44); ctx.fillText((slowOn ? slowScale().title.replace(/, [^,]+$/, '') : P.name) + (st.c ? ' · ' + st.c : ' · Kenya'), pad, 70);
+    ctx.fillStyle = '#566b72'; ctx.font = font(400, 26);
+    ctx.fillText(slowOn ? $('slowTime').textContent : when, pad, 112);
+    ctx.drawImage(img, pad, headH, W, H);
+    // colour key
+    const sc = slowOn ? slowScale() : {S: P.S, rain: P.rain, title: P.legend}, n = sc.S.colors.length, ly = headH + H + 30, lw = CW - pad * 2;
+    ctx.fillStyle = '#566b72'; ctx.font = font(400, 24); ctx.fillText(sc.title, pad, ly);
+    sc.S.colors.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(pad + i * lw / n, ly + 14, lw / n + 1, 26); });
+    ctx.fillStyle = '#566b72'; ctx.font = font(400, 20); ctx.textAlign = 'center';
+    sc.S.levels.forEach((lv, i) => { const x = pad + (sc.rain ? i : i + 1) * lw / n; ctx.fillText(String(lv), Math.min(CW - pad - 10, Math.max(pad + 10, x)), ly + 66); });
+    ctx.textAlign = 'left'; ctx.fillStyle = '#566b72'; ctx.font = font(400, 20);
+    ctx.fillText('Source: ' + (BASE.source || 'KMD') + (runTxt ? ', WRF model run of ' + runTxt + ' EAT' : ''), pad, CH - 26);
+    const url = cv.toDataURL('image/png');
+    const name = 'kenya-' + P.key + (st.c ? '-' + st.c.toLowerCase().replace(/[^a-z0-9]+/g, '-') : '') + (st.d ? '-day' + st.d : '') + '.png';
+    const link = document.createElement('a'); link.href = url; link.download = name; document.body.append(link); link.click(); link.remove();
+  } catch (e) {
+    alert('Sorry, the map picture could not be made in this browser. Try Chrome or Edge, or use the PDF button.');
+  }
+  btn.textContent = label; btn.disabled = false;
+}
+$('dlPng').addEventListener('click', downloadMapPNG);
+$('dlPdf').addEventListener('click', () => { if (slowOn) pause(); window.print(); });
+
 const render = () => {
-  updateTexts(); renderDays(); updateSlowNote();
+  updateTexts();
+  $('printNote').textContent = 'Printed ' + new Date().toLocaleString('en-GB', {timeZone: 'Africa/Nairobi', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'}) + ' EAT from ' + location.href.split('#')[0]; renderDays(); updateSlowNote();
   if (slowOn) { const name = animVar(PAR[st.p].key); if (!name || !A.vars.includes(name)) stopSlow(); else if (!animGrids[name]) { pause(); animGrid(name).then(() => { renderMap(); play(); }).catch(stopSlow); } }
   [...$('params').children].forEach((b, i) => b.setAttribute('aria-pressed', i === st.p));
   $('county').value = st.c || ''; $('allBtn').hidden = !st.c;
