@@ -1,0 +1,1 @@
+window.KMD_ANIM_META = {"start": "2026-11-03T09:00+03:00", "step_hours": 3, "frames": 24, "vars": ["rain", "temp", "wind", "cloud", "humid", "dew", "press"], "grid": {"lon0": 32.672, "lat_top": 6.1547, "dx": 0.07195813409213363, "dy": 0.0718318728581528, "nx": 146, "ny": 164, "nodata": -32768}};
