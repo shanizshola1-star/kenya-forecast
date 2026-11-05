@@ -171,9 +171,11 @@ footer p{margin:0 0 6px}
 .clabel{fill:var(--ink);font-weight:700;paint-order:stroke;stroke:var(--surface);stroke-linejoin:round;pointer-events:none;text-anchor:middle;dominant-baseline:central}
 .cvalue{fill:var(--ink);font-weight:400;paint-order:stroke;stroke:var(--surface);stroke-linejoin:round;pointer-events:none;text-anchor:middle;dominant-baseline:central;font-variant-numeric:tabular-nums}
 .wvalue{fill:var(--ink);font-weight:700;paint-order:stroke;stroke:var(--surface);stroke-linejoin:round;pointer-events:none;text-anchor:middle;dominant-baseline:central;font-variant-numeric:tabular-nums}
-.hotdot{fill:#d7263d;stroke:#fff;stroke-width:1.5px;vector-effect:non-scaling-stroke;pointer-events:none}
-.hotlabel{fill:#a3112a;font-weight:700;paint-order:stroke;stroke:var(--surface);stroke-linejoin:round;pointer-events:none;dominant-baseline:central}
-@media (prefers-color-scheme:dark){.hotlabel{fill:#ff9aa8}}
+.hotdot{fill:var(--ink);stroke:var(--surface);stroke-width:1.5px;vector-effect:non-scaling-stroke;pointer-events:none}
+.hotlabel{fill:var(--ink);font-weight:400;font-style:italic;paint-order:stroke;stroke:var(--surface);stroke-linejoin:round;pointer-events:none;dominant-baseline:central}
+.hotkey{display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--muted);margin:8px 0 0}
+.hotkey i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 2px var(--surface)}
+.hotkey[hidden]{display:none}
 .tapdot{fill:none;stroke:var(--ink);stroke-width:2.5px;vector-effect:non-scaling-stroke;pointer-events:none}
 .rank svg{display:block;width:100%;height:auto}
 .rank .bar{cursor:pointer}
@@ -188,7 +190,7 @@ footer p{margin:0 0 6px}
     <h1 id="title">Kenya 7-day outlook</h1>
     <p class="valid" id="valid"></p>
   </header>
-  <p class="links">Looking for day-by-day figures? See the <a href="./">daily dashboard</a> or the <a href="animated.html">animated version</a>.</p>
+  <p class="links">Also see the <a href="index.html">Open-Meteo 7-day dashboard</a> or the <a href="animated.html">animated version</a>.</p>
 
   <nav class="kdays" id="kdays" aria-label="Forecast day" hidden></nav>
 
@@ -218,6 +220,7 @@ footer p{margin:0 0 6px}
       </div>
       <div class="map" id="map"></div>
       <p class="tapinfo" id="tapInfo">Tap or click anywhere on the map to see the exact amount for that spot.</p>
+      <p class="hotkey" id="hotKey" hidden><i></i><span id="hotKeyText"></span></p>
       <div class="legend"><div class="lt" id="legendTitle"></div><div class="ramp" id="ramp"></div><div class="ticks" id="ticks"></div></div>
       <div class="tip" id="mapTip"></div>
     </section>
@@ -319,7 +322,10 @@ const f1 = v => v == null ? '–' : (Math.round(v*10)/10).toFixed(1);
 const BASE = K;                 // the whole period
 let D = K, counties, wards, byName, G;
 const DAYS = BASE.days || 0, PERIODS = BASE.periods || [];
-const mean = (a, p) => a.m[PAR[p].i*2], extreme = (a, p) => a.m[PAR[p].i*2+1];
+let PIDX = {};
+const mean = (a, p) => { const i = PIDX[PAR[p].key]; return i == null ? null : a.m[i*2]; };
+const extreme = (a, p) => { const i = PIDX[PAR[p].key]; return i == null ? null : a.m[i*2+1]; };
+const hasParam = (p) => PIDX[PAR[p].key] != null;
 const better = (p, a, b) => PAR[p].low ? a < b : a > b;
 
 const colorIn = (S, v, rain) => {
@@ -333,6 +339,7 @@ const colorFill = (p, v) => colorIn(PAR[p].S, v, PAR[p].rain) || 'var(--mapbase)
 const gridCache = {}, imgCache = {};
 const useData = (X) => {
   D = X; G = X.grid;
+  PIDX = {}; (X.params || ['rain', 'tmax', 'tmin']).forEach((k, i) => { PIDX[k] = i; });
   counties = SHAPES.counties.map((c, i) => Object.assign({m: X.counties[i]}, c));
   wards = SHAPES.wards.map((w, i) => Object.assign({m: X.wards[i]}, w));
   byName = new Map(counties.map((c, i) => [c.n, i]));
@@ -443,8 +450,11 @@ const updateTexts = () => {
     if (P.key === 'tmax') Object.assign(P, {legend: 'Highest temperature ' + (st.d ? 'during the day' : 'in the ' + n + ' days') + ', °C', phr: 'counties reach 35 °C or above'});
     if (P.key === 'tmin') Object.assign(P, {legend: 'Lowest temperature ' + (st.d ? 'during the day' : 'in the ' + n + ' days') + ', °C', phr: 'counties drop to 10 °C or below'});
   });
-  [...$('params').children].forEach((b, i) => { b.textContent = PAR[i].name; });
-  $('valid').textContent = (runTxt ? 'KMD WRF forecast, model run of ' + runTxt + ' EAT. ' : 'Kenya Meteorological Department forecast. Forecast file received ' + recTxt + ' EAT. ')
+  [...$('params').children].forEach((b, i) => {
+    b.textContent = PAR[i].name; const ok = hasParam(i);
+    b.disabled = !ok; b.style.opacity = ok ? '' : '.45'; b.title = ok ? '' : 'Only in the whole-period view: pick “All days” to see it';
+  });
+  $('valid').textContent = (runTxt ? 'KMD WRF forecast, model run of ' + runTxt + ' EAT. ' : BASE.source_kind ? 'KMD’s daily forecast files, received ' + recTxt + ' EAT. ' : 'Kenya Meteorological Department forecast. Forecast file received ' + recTxt + ' EAT. ')
     + (st.d && PERIODS[st.d - 1] ? 'Showing Day ' + st.d + ': 09:00 EAT ' + fmtD(PERIODS[st.d - 1][0]) + ' to 09:00 EAT ' + fmtD(PERIODS[st.d - 1][1]) + '.'
        : PERIODS.length ? 'Covers 09:00 EAT ' + fmtD(PERIODS[0][0]) + ' to 09:00 EAT ' + fmtD(PERIODS[PERIODS.length - 1][1]) + '.' : 'Covers the coming 7 days.');
   $('countsNote').textContent = 'The counts use ' + lim + ' mm or more of rain' + (st.d ? ' in the day' : ' over the period') + ', a highest temperature of 35 °C or above, and a lowest temperature of 10 °C or below, based on each area’s average.';
@@ -493,7 +503,7 @@ const pathEl = (d, cls) => { const e = document.createElementNS(NS, 'path'); e.s
 const renderMap = () => {
   const P = PAR[st.p], p = st.p, box = $('map'), tip = $('mapTip');
   $('mapTitle').textContent = P.name + (st.c ? ' in ' + st.c : ' across Kenya');
-  $('mapNote').textContent = st.c ? 'Each ward shows its figure. Tap any spot for its exact value, tap another county to switch, or use “Back to all counties”.' : 'Each county shows its figure, and red pins mark the ' + (RANK[PAR[st.p].key] || 'top').toLowerCase() + ' spots. Tap any county to zoom in and see the exact value at that spot.';
+  $('mapNote').textContent = st.c ? 'Each ward shows its figure. Tap any spot for its exact value, tap another county to switch, or use “Back to all counties”.' : 'Each county shows its figure, and dots mark the ' + (RANK[PAR[st.p].key] || 'top').toLowerCase() + ' wards. Tap any county to zoom in and see the exact value at that spot.';
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', SHAPES.view.join(' ')); svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Map of Kenya showing KMD ' + P.name.toLowerCase());
@@ -602,15 +612,18 @@ const drawLabels = (svg, layer) => {
   const txt = (x, y, str, sz, cls) => { const t = document.createElementNS(NS, 'text'); t.setAttribute('class', cls); t.setAttribute('x', x); t.setAttribute('y', y);
     t.setAttribute('font-size', sz); t.setAttribute('stroke-width', sz * 0.28); t.textContent = str; layer.append(t); return t; };
   // hotspot pins first, so they always show
+  let pins = 0;
   if (showVal) for (const w of hotspots()) {
     const c = centre(w); if (!c || c[0] < vb.x || c[0] > vb.x + vb.width || c[1] < vb.y || c[1] > vb.y + vb.height) continue;
     const dot = document.createElementNS(NS, 'circle'); dot.setAttribute('cx', c[0]); dot.setAttribute('cy', c[1]); dot.setAttribute('r', 4.5 * k); dot.setAttribute('class', 'hotdot');
-    const t = txt(c[0] + 7 * k, c[1], w.n + ' · ' + f1(mean(w, st.p)) + ' ' + P.unit, size * 0.92, 'hotlabel');
+    const t = txt(c[0] + 7 * k, c[1], w.n + ' ward · ' + f1(mean(w, st.p)) + ' ' + P.unit, size * 0.92, 'hotlabel');
     const wd = t.getComputedTextLength(), h = size * 1.1;
     const b = {x0: c[0] - 5 * k, x1: c[0] + 9 * k + wd, y0: c[1] - h / 2, y1: c[1] + h / 2};
     if (!fits(b)) { t.remove(); continue; }
-    layer.append(dot); kept.push(b);
+    layer.append(dot); kept.push(b); pins++;
   }
+  $('hotKey').hidden = !pins;
+  $('hotKeyText').textContent = (RANK[P.key] || 'Top') + ' wards' + (st.c ? ' in ' + st.c : '') + ', with their ' + (P.key === 'rain' ? 'rainfall' : P.name.toLowerCase());
   // county names, with the county figure underneath
   const order = counties.map((c, i) => ({c, i, area: c.bboxArea || 0}));
   order.forEach(o => { if (!o.c.bboxArea) { const b = Poly(o.c.d); o.c.bboxArea = b; o.area = b; } });
@@ -825,7 +838,9 @@ async function setDay(d) {
     try { await loadScript('kmd-day' + d + '.js'); dayData[d] = window['KMD_DAY_' + d]; } catch (_) { dayData[d] = null; }
     if (!dayData[d]) d = 0;
   }
-  st.d = d; useData(d ? dayData[d] : BASE); writeHash(); render();
+  st.d = d; useData(d ? dayData[d] : BASE);
+  if (!hasParam(st.p)) st.p = 0;
+  writeHash(); render();
 }
 const renderDays = () => {
   const nav = $('kdays');
@@ -842,20 +857,23 @@ const renderDays = () => {
 // ---------- slow motion: KMD's model hour by hour, blended smoothly ----------
 let A = null, slowOn = false, slowT = 0, playing = false, lastTs = 0, lastPaint = 0, mapImgEl = null, slowCanvas = null;
 const animGrids = {};
+const animVar = (key) => A && A.vars.includes(key) ? key : ANIM_OF[key];   // daily files animate highest and lowest temperature separately
 const ANIM_OF = {rain: 'rain', tmax: 'temp', tmin: 'temp', tavg: 'temp', wind: 'wind', cloud: 'cloud', humid: 'humid', dew: 'dew', press: 'press'};
 const slowScale = () => {
-  const v = ANIM_OF[PAR[st.p].key];
-  return v === 'rain' ? {S: RAIN3, rain: true, title: 'Rainfall in each 3 hours, mm'} : v === 'temp' ? {S: TEMP, rain: false, title: 'Temperature, °C'}
+  const v = animVar(PAR[st.p].key), daily = A && A.step_hours >= 24;
+  if (v === 'tmax') return {S: TEMP, rain: false, title: 'Highest temperature of each day, °C'};
+  if (v === 'tmin') return {S: TEMP, rain: false, title: 'Lowest temperature of each day, °C'};
+  return v === 'rain' ? (daily ? {S: RAIN_DAY, rain: true, title: 'Rainfall each day, mm'} : {S: RAIN3, rain: true, title: 'Rainfall in each 3 hours, mm'}) : v === 'temp' ? {S: TEMP, rain: false, title: 'Temperature, °C'}
     : v === 'wind' ? {S: WIND, rain: false, title: 'Wind speed, km/h'} : v === 'cloud' ? {S: CLOUD, rain: false, title: 'Cloud cover, %'}
     : v === 'dew' ? {S: DEW, rain: false, title: 'Dew point, °C'} : v === 'press' ? {S: PRESS, rain: false, title: 'Air pressure at sea level, hPa'} : {S: HUMID, rain: false, title: 'Relative humidity, %'};
 };
 const decode = (b64) => { const bin = atob(b64), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return new Int16Array(u8.buffer); };
 const updateSlowNote = () => {
   if (!A) return;
-  const ok = !!ANIM_OF[PAR[st.p].key] && A.vars.includes(ANIM_OF[PAR[st.p].key]);
+  const ok = !!animVar(PAR[st.p].key) && A.vars.includes(animVar(PAR[st.p].key)), daily = A.step_hours >= 24;
   $('slowGo').disabled = !ok; $('slowGo').style.opacity = ok ? 1 : .5;
-  $('slowNote').textContent = ok ? (slowOn ? '' : 'Watch KMD’s forecast change hour by hour, blending smoothly between 3-hour steps.')
-    : 'Slow motion is available for every measure in the WRF file.';
+  $('slowNote').textContent = ok ? (slowOn ? '' : daily ? 'Watch KMD’s forecast change day by day, blending smoothly from one day to the next.' : 'Watch KMD’s forecast change hour by hour, blending smoothly between 3-hour steps.')
+    : daily ? 'Slow motion through the days is available for rainfall and highest and lowest temperature.' : 'Slow motion is available for every measure in the WRF file.';
 };
 loadScript('kmd-anim-meta.js').then(() => { A = window.KMD_ANIM_META || null; if (A) { $('slow').hidden = false; $('slowRange').max = A.frames - 1; updateSlowNote(); } }).catch(() => {});
 async function animGrid(name) {
@@ -865,14 +883,14 @@ async function animGrid(name) {
   return (animGrids[name] = decode(window[key]));
 }
 const slowValue = (lon, lat) => {
-  const g = animGrids[ANIM_OF[PAR[st.p].key]]; if (!g) return null; const a = A.grid;
+  const g = animGrids[animVar(PAR[st.p].key)]; if (!g) return null; const a = A.grid;
   const c = Math.round((lon - a.lon0) / a.dx), r = Math.round((a.lat_top - lat) / a.dy);
   if (c < 0 || r < 0 || c >= a.nx || r >= a.ny) return null;
   const v = g[Math.min(A.frames - 1, Math.round(slowT)) * a.nx * a.ny + r * a.nx + c]; return v === a.nodata ? null : v / 10;
 };
 const UPS = 3;
 const paintSlow = (setup) => {
-  const name = ANIM_OF[PAR[st.p].key], g = animGrids[name]; if (!g || !mapImgEl) return;
+  const name = animVar(PAR[st.p].key), g = animGrids[name]; if (!g || !mapImgEl) return;
   const a = A.grid, nx = a.nx, ny = a.ny, W = nx * UPS, H = ny * UPS, n = nx * ny, sc = slowScale();
   if (setup) {
     mapImgEl.setAttribute('x', a.lon0 - a.dx / 2); mapImgEl.setAttribute('y', -(a.lat_top + a.dy / 2));
@@ -900,7 +918,9 @@ const paintSlow = (setup) => {
   mapImgEl.setAttribute('href', slowCanvas.toDataURL());
   const step = A.step_hours * 3600e3, t0 = Date.parse(A.start) + Math.floor(slowT) * step, tNow = Date.parse(A.start) + slowT * step;
   const hm = ms => new Date(ms + 3 * 3600e3).toISOString().slice(11, 16);
-  $('slowTime').textContent = fmtD(new Date(tNow).toISOString()) + ', ' + (sc.rain ? hm(t0) + '–' + hm(t0 + step) + ' EAT' : hm(Math.round(tNow / 9e5) * 9e5) + ' EAT');
+  $('slowTime').textContent = A.step_hours >= 24
+    ? 'Day ' + (Math.floor(slowT) + 1) + ' · ' + fmtD(new Date(t0).toISOString()) + (slowT % 1 > 0.05 && Math.floor(slowT) + 1 < A.frames ? '  →  Day ' + (Math.floor(slowT) + 2) : '')
+    : fmtD(new Date(tNow).toISOString()) + ', ' + (sc.rain ? hm(t0) + '–' + hm(t0 + step) + ' EAT' : hm(Math.round(tNow / 9e5) * 9e5) + ' EAT');
   $('slowRange').value = slowT;
   document.querySelectorAll('.kday').forEach(b => { const d = Number(b.dataset.d), pp = PERIODS[d - 1]; b.style.boxShadow = d && pp && tNow >= Date.parse(pp[0]) && tNow < Date.parse(pp[1]) ? 'inset 0 -4px 0 var(--lake)' : ''; });
 };
@@ -922,14 +942,14 @@ const tick = (ts) => {
   if (!playing) return;
   const dt = lastTs ? Math.min(250, ts - lastTs) : 0; lastTs = ts;
   slowT += dt / 1000 * Number($('slowSpeed').value);
-  if (slowT > A.frames - 1) slowT = 0;
+  if (slowT > A.frames - 1) slowT = 0;   // loop back to the start
   if (ts - lastPaint > 70) { lastPaint = ts; paintSlow(false); if (tap) showTap(); }
   requestAnimationFrame(tick);
 };
 const play = () => { playing = true; lastTs = 0; $('slowPlay').textContent = '❚❚ Pause'; requestAnimationFrame(tick); };
 const pause = () => { playing = false; $('slowPlay').textContent = '▶ Play'; };
 async function startSlow() {
-  const name = ANIM_OF[PAR[st.p].key]; if (!name) return;
+  const name = animVar(PAR[st.p].key); if (!name) return;
   $('slowGo').textContent = 'Loading…';
   try { await animGrid(name); } catch (_) { $('slowGo').textContent = '▶ Play in slow motion'; $('slowNote').textContent = 'The animation data could not be loaded.'; return; }
   slowOn = true; $('slowGo').hidden = true; $('slowCtl').hidden = false; updateSlowNote();
@@ -944,10 +964,12 @@ $('slowRange').addEventListener('input', e => { pause(); slowT = Number(e.target
 
 const render = () => {
   updateTexts(); renderDays(); updateSlowNote();
-  if (slowOn) { const name = ANIM_OF[PAR[st.p].key]; if (!name) stopSlow(); else if (!animGrids[name]) { pause(); animGrid(name).then(() => { renderMap(); play(); }); } }
+  if (slowOn) { const name = animVar(PAR[st.p].key); if (!name || !A.vars.includes(name)) stopSlow(); else if (!animGrids[name]) { pause(); animGrid(name).then(() => { renderMap(); play(); }).catch(stopSlow); } }
   [...$('params').children].forEach((b, i) => b.setAttribute('aria-pressed', i === st.p));
   $('county').value = st.c || ''; $('allBtn').hidden = !st.c;
   renderTop(); renderWhere(); renderMap(); renderTable(); renderRank();
+  const date = st.d && PERIODS[st.d - 1] ? PERIODS[st.d - 1][0].slice(0, 10) : (PERIODS[0] ? PERIODS[0][0].slice(0, 10) : new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10));
+  document.dispatchEvent(new CustomEvent('kf:render', {detail: {param: PAR[st.p].key, county: st.c, date, day: st.d}}));
 };
 { const d0 = readHash(); writeHash(); render(); if (d0) setDay(d0); }
 let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { renderMap(); renderRank(); }, 150); });
