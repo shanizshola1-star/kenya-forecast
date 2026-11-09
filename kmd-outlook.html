@@ -275,6 +275,7 @@ footer p{margin:0 0 6px}
     <p id="source"></p>
     <p>The map shows KMD’s forecast grid, with points about 4 km apart. County and ward figures are the average of all grid points inside each area; the wettest, hottest or coldest point is the most extreme grid value inside it.</p>
     <p id="countsNote"></p>
+    <p>Vegetation cover is the share of the ground covered by plants, from the WRF model’s land data. In a weekly summary file, humidity is worked out from the week’s average temperature and dew point.</p>
     <p>Lakes are shown in blue and are left out of county and ward figures, so those describe the land. Dew point shows how much moisture is in the air: above about 20 °C feels muggy. Air pressure is adjusted to sea level; low pressure often comes with unsettled weather. Wind is measured 10 m above the ground. Sunshine is the sunlight reaching the ground in watts per square metre, soil moisture the share of water in the top soil layer, cloud cover the share of the sky covered by cloud, and humidity the relative humidity near the ground. Each measure appears when KMD’s file includes it.</p>
   </footer>
 </div>
@@ -302,6 +303,7 @@ const CLOUD = {colors:['#f4f6f8','#dfe5eb','#c3ccd6','#a3afbd','#8291a3','#63748
 const HUMID = {colors:['#a6611a','#d8b365','#f6e8c3','#c7eae5','#80cdc1','#35978f','#1d6f8a','#253494'],levels:[30,40,50,60,70,80,90]};
 const DEW = {colors:['#f7fcf0','#e0f3db','#ccebc5','#a8ddb5','#7bccc4','#4eb3d3','#2b8cbe','#08589e'],levels:[8,10,12,14,16,18,20]};
 const PRESS = {colors:['#5e3c99','#8073ac','#b2abd2','#d8daeb','#fee0b6','#fdb863','#e08214','#b35806'],levels:[1006,1008,1009,1010,1011,1012,1014]};
+const VEG = {colors:['#f7f3e3','#e6efc5','#c9e3a0','#a3d17a','#78b85a','#4f9a3f','#2f7a2c','#155a1e'],levels:[10,20,30,40,50,60,75]};
 const RAIN_DAY = {colors: RAIN.colors, levels:[1,5,10,15,20,25,30,35,40,50,60,70,80,100]};
 const RAIN3 = {colors: RAIN.colors, levels:[0.2,0.5,1,2,3,4,5,6,8,10,15,20,25,30]};
 const ALL_PAR = [
@@ -338,8 +340,11 @@ const ALL_PAR = [
   {key:'press', grid:'press', name:'Air pressure', unit:'hPa', low:false, S:PRESS, rain:false, legend:'Air pressure at sea level, hPa',
    lead:'Highest pressure', leadW:'Highest-pressure ward', ext:'Highest pressure', alert:v=>v<=1008, alertL:'Counties with low pressure (1008 hPa or less)', alertLW:'Wards with low pressure (1008 hPa or less)',
    phr:'counties have low pressure, at 1008 hPa or less', verb:'the highest air pressure is over '},
+  {key:'veg', grid:'veg', name:'Vegetation cover', unit:'%', low:false, S:VEG, rain:false, legend:'Share of the ground covered by plants, %',
+   lead:'Greenest county', leadW:'Greenest ward', ext:'Greenest point', alert:v=>v<=15, alertL:'Counties with little vegetation (15% or less)', alertLW:'Wards with little vegetation (15% or less)',
+   phr:'counties have little vegetation, at 15% or less', verb:'the most vegetation is in '},
 ];
-const RANK = {rain:'Wettest', tmax:'Hottest', tmin:'Coldest', wind:'Windiest', sun:'Sunniest', soil:'Wettest-soil', cloud:'Cloudiest', humid:'Most humid', tavg:'Warmest', dew:'Most moist', press:'Highest-pressure'};
+const RANK = {rain:'Wettest', tmax:'Hottest', tmin:'Coldest', wind:'Windiest', sun:'Sunniest', soil:'Wettest-soil', cloud:'Cloudiest', humid:'Most humid', tavg:'Warmest', dew:'Most moist', press:'Highest-pressure', veg:'Greenest'};
 // only the measures this KMD file contains, each remembering its place in the data
 const PAR = ALL_PAR.map((P, i) => Object.assign({i}, P)).filter(P => (K.params || ['rain','tmax','tmin']).includes(P.key) && K.grid[P.grid])
   .map(P => Object.assign(P, {i: (K.params || ['rain','tmax','tmin']).indexOf(P.key)}));
@@ -483,7 +488,8 @@ const updateTexts = () => {
   });
   $('valid').textContent = (runTxt ? 'KMD WRF forecast, model run of ' + runTxt + ' EAT. ' : BASE.source_kind ? 'KMD’s daily forecast files, received ' + recTxt + ' EAT. ' : 'Kenya Meteorological Department forecast. Forecast file received ' + recTxt + ' EAT. ')
     + (st.d && PERIODS[st.d - 1] ? 'Showing Day ' + st.d + ': 09:00 EAT ' + fmtD(PERIODS[st.d - 1][0]) + ' to 09:00 EAT ' + fmtD(PERIODS[st.d - 1][1]) + '.'
-       : PERIODS.length ? 'Covers 09:00 EAT ' + fmtD(PERIODS[0][0]) + ' to 09:00 EAT ' + fmtD(PERIODS[PERIODS.length - 1][1]) + '.' : 'Covers the coming 7 days.');
+       : PERIODS.length ? 'Covers 09:00 EAT ' + fmtD(PERIODS[0][0]) + ' to 09:00 EAT ' + fmtD(PERIODS[PERIODS.length - 1][1]) + '.'
+       : BASE.period ? (BASE.weekly ? 'Weekly summary for ' : 'Covers ') + fmtD(BASE.period[0]) + ' to ' + fmtD(BASE.period[1]) + '.' : 'Covers the coming 7 days.');
   $('countsNote').textContent = 'The counts use ' + lim + ' mm or more of rain' + (st.d ? ' in the day' : ' over the period') + ', a highest temperature of 35 °C or above, and a lowest temperature of 10 °C or below, based on each area’s average.';
 };
 
@@ -918,7 +924,8 @@ const updateSlowNote = () => {
   $('slowNote').textContent = ok ? (slowOn ? '' : daily ? 'Watch KMD’s forecast change day by day, blending smoothly from one day to the next.' : 'Watch KMD’s forecast change hour by hour, blending smoothly between 3-hour steps.')
     : daily ? 'Slow motion through the days is available for rainfall and highest and lowest temperature.' : 'Slow motion is available for every measure in the WRF file.';
 };
-loadScript('kmd-anim-meta.js').then(() => { A = window.KMD_ANIM_META || null; if (A) { $('slow').hidden = false; $('slowRange').max = A.frames - 1; updateSlowNote(); } }).catch(() => {});
+(BASE.weekly ? Promise.reject() : loadScript('kmd-anim-meta.js')).then(() => { A = window.KMD_ANIM_META || null;   // a weekly summary has no hours to play
+   if (A) { $('slow').hidden = false; $('slowRange').max = A.frames - 1; updateSlowNote(); } }).catch(() => {});
 async function animGrid(name) {
   if (animGrids[name]) return animGrids[name];
   const key = 'KMD_ANIM_' + name.toUpperCase();
